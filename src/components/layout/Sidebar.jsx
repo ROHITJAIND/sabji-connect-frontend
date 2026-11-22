@@ -1,8 +1,10 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useFamilyMembers } from '../../hooks/useFamilyMembers';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, LogOut, Users, ChevronRight, UsersRound, PackagePlus, Library, BarChart3 } from 'lucide-react';
+import { X, User, LogOut, Users, ChevronRight, UsersRound, PackagePlus, Library, BarChart3, Home } from 'lucide-react';
+import { familiesApi } from '../../api';
 
 const ROLE_COLORS = {
   Admin: 'bg-purple-100 text-purple-700',
@@ -11,9 +13,18 @@ const ROLE_COLORS = {
 };
 
 export default function Sidebar({ isOpen, onClose, onSelectMember }) {
-  const { currentUser, userRole, userFamilyId, userDisplayName, logout } = useAuth();
+  const { currentUser, userRole, userFamilyId, activeFamilyId, switchFamily, userDisplayName, logout } = useAuth();
   const { members } = useFamilyMembers(userFamilyId);
+  const [families, setFamilies] = useState([]);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isOpen) {
+      familiesApi.list()
+        .then(data => setFamilies(data || []))
+        .catch(err => console.error('Failed to load families in sidebar:', err));
+    }
+  }, [isOpen]);
 
   const photoURL = currentUser?.avatar_url || currentUser?.avatarUrl || '';
   const displayName = userDisplayName || currentUser?.display_name || currentUser?.displayName || currentUser?.email?.split('@')[0] || '';
@@ -79,6 +90,47 @@ export default function Sidebar({ isOpen, onClose, onSelectMember }) {
               <span className={`inline-block mt-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide ${ROLE_COLORS[userRole] || 'bg-gray-100 text-gray-600'}`}>
                 {userRole}
               </span>
+            </div>
+
+            {/* Family Switcher Dropdown */}
+            <div className="px-4 py-3 bg-amber-50/80 border-b-2 border-gray-900">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Home size={14} className="text-orange-600" />
+                  <span className="text-[11px] font-black uppercase tracking-wider text-gray-800">Switch Family</span>
+                </div>
+                {userRole === 'Admin' && (
+                  <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">
+                    All Access
+                  </span>
+                )}
+              </div>
+              <div className="relative">
+                <select
+                  value={activeFamilyId || ''}
+                  onChange={(e) => switchFamily(e.target.value)}
+                  className="w-full text-xs font-bold p-2.5 rounded-xl border-2 border-gray-900 bg-white text-gray-900 shadow-[2px_2px_0px_rgba(0,0,0,1)] focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer"
+                >
+                  {userRole === 'Admin' ? (
+                    <>
+                      <option value="">🌟 All Families (Overview)</option>
+                      {families.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          🏠 {f.name}
+                        </option>
+                      ))}
+                    </>
+                  ) : families.length === 0 ? (
+                    <option value="" disabled>No Families Assigned</option>
+                  ) : (
+                    families.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        🏠 {f.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
             </div>
 
             {/* Menu items */}

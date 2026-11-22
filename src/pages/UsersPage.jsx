@@ -196,10 +196,9 @@ function CreateUserModal({ onClose, onUserCreated }) {
 }
 
 /* ─── Edit User Modal ─── */
-function EditUserModal({ user, families, onClose, onUserUpdated }) {
+function EditUserModal({ user, onClose, onUserUpdated }) {
   const [displayName, setDisplayName] = useState(user.display_name || '');
   const [role, setRole] = useState(user.role || 'Hukum');
-  const [familyId, setFamilyId] = useState(user.family_id || '');
   const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -224,7 +223,6 @@ function EditUserModal({ user, families, onClose, onUserUpdated }) {
       const payload = {
         display_name: displayName.trim(),
         role: role,
-        family_id: familyId || '',
       };
       if (newPassword.trim()) {
         payload.password = newPassword.trim();
@@ -306,22 +304,9 @@ function EditUserModal({ user, families, onClose, onUserUpdated }) {
                 );
               })}
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-gray-800 mb-1">Family Assignment</label>
-            <select
-              value={familyId}
-              onChange={(e) => setFamilyId(e.target.value)}
-              className="w-full p-3 rounded-xl border-2 border-gray-900 font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
-            >
-              <option value="">(None - Unassigned)</option>
-              {families.map((f) => (
-                <option key={f.id} value={f.id}>
-                  🏠 {f.name}
-                </option>
-              ))}
-            </select>
+            <p className="text-xs text-gray-400 mt-1.5 font-medium">
+              💡 Family assignment is managed exclusively in the <strong>Family Management</strong> section. Admins have access to all families.
+            </p>
           </div>
 
           <div>
@@ -420,12 +405,17 @@ export default function UsersPage() {
   });
 
   const filteredUsers = users.filter((u) => {
-    if (filter === 'Unassigned') return !u.family_id;
-    if (filter === 'Assigned') return !!u.family_id;
+    if (u.role === 'Admin') {
+      if (filter === 'Unassigned') return false;
+      return true;
+    }
+    const hasFamily = (u.family_ids && u.family_ids.length > 0) || !!u.family_id;
+    if (filter === 'Unassigned') return !hasFamily;
+    if (filter === 'Assigned') return hasFamily;
     return true;
   });
 
-  const unassignedCount = users.filter((u) => !u.family_id).length;
+  const unassignedCount = users.filter((u) => u.role !== 'Admin' && (!u.family_ids?.length && !u.family_id)).length;
 
   return (
     <div className="min-h-screen pb-24 bg-gray-50 flex flex-col">
@@ -489,7 +479,9 @@ export default function UsersPage() {
               const initials = user.display_name
                 ? user.display_name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
                 : '?';
-              const assignedFamilyName = user.family_id ? familyMap[user.family_id] || 'Assigned Family' : null;
+              const userFids = user.family_ids && user.family_ids.length > 0
+                ? user.family_ids
+                : (user.family_id ? [user.family_id] : []);
 
               return (
                 <motion.div
@@ -513,16 +505,22 @@ export default function UsersPage() {
                       <h3 className="font-bold text-gray-900 truncate">{user.display_name || 'Unnamed User'}</h3>
                       <p className="text-xs text-gray-500 font-semibold truncate">{user.email}</p>
 
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
                         <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md ${roleConfig.bg} ${roleConfig.text}`}>
                           <RIcon size={11} />
                           {user.role}
                         </span>
 
-                        {assignedFamilyName ? (
-                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-green-100 text-green-700">
-                            🏠 {assignedFamilyName}
+                        {user.role === 'Admin' ? (
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-purple-100 text-purple-700 border border-purple-200">
+                            🌟 Global Access (All Families)
                           </span>
+                        ) : userFids.length > 0 ? (
+                          userFids.map((fid) => (
+                            <span key={fid} className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-green-100 text-green-700">
+                              🏠 {familyMap[fid] || 'Assigned Family'}
+                            </span>
+                          ))
                         ) : (
                           <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">
                             Unassigned

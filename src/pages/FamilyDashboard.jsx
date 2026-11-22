@@ -100,11 +100,13 @@ function AddMemberModal({ familyId, currentMemberIds, onClose, onMemberAdded }) 
     async function loadUsers() {
       try {
         const users = await authApi.adminListUsers(false);
-        setAllUsers(users);
-        // Pre-select first eligible user if available
-        const eligible = users.filter(u => !currentMemberIds.includes(u.id));
+        setAllUsers(users || []);
+        // Pre-select first eligible non-admin user
+        const eligible = (users || []).filter(u => u.role !== 'Admin' && !currentMemberIds.includes(u.id));
         if (eligible.length > 0) {
           setSelectedUserId(eligible[0].id);
+        } else {
+          setSelectedUserId('');
         }
       } catch (err) {
         console.error('Failed to load users:', err);
@@ -115,8 +117,8 @@ function AddMemberModal({ familyId, currentMemberIds, onClose, onMemberAdded }) 
     loadUsers();
   }, [currentMemberIds]);
 
-  const eligibleUsers = allUsers.filter(u => !currentMemberIds.includes(u.id));
-  const selectedUser = allUsers.find(u => u.id === selectedUserId);
+  const eligibleUsers = allUsers.filter(u => u.role !== 'Admin' && !currentMemberIds.includes(u.id));
+  const selectedUser = eligibleUsers.find(u => u.id === selectedUserId);
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -190,14 +192,17 @@ function AddMemberModal({ familyId, currentMemberIds, onClose, onMemberAdded }) 
                 required
                 className="w-full p-3 rounded-xl border-2 border-gray-900 font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
               >
-                {eligibleUsers.map(u => (
-                  <option key={u.id} value={u.id}>
-                    {u.display_name} ({u.role}) · {u.email}
-                  </option>
-                ))}
+                {eligibleUsers.map(u => {
+                  const fCount = u.family_ids ? u.family_ids.length : (u.family_id ? 1 : 0);
+                  return (
+                    <option key={u.id} value={u.id}>
+                      {u.display_name} ({u.role}) · {fCount > 0 ? `[Member of ${fCount} ${fCount === 1 ? 'family' : 'families'}]` : '[Unassigned]'}
+                    </option>
+                  );
+                })}
               </select>
               <p className="text-xs text-gray-500 mt-2 font-medium">
-                💡 Roles are defined in the <strong>User Management</strong> section and apply system-wide.
+                💡 A user can belong to multiple families. Admins have access to all families and cannot be assigned to one.
               </p>
             </div>
 

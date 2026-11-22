@@ -1,4 +1,4 @@
-﻿import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { authApi, tokens, connectWebSocket } from '../api';
 
 const AuthContext = createContext();
@@ -7,6 +7,8 @@ export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [userFamilyId, setUserFamilyId] = useState(null);
+  const [userFamilyIds, setUserFamilyIds] = useState([]);
+  const [activeFamilyId, setActiveFamilyId] = useState(() => localStorage.getItem('sabji_active_family_id') || null);
   const [userDisplayName, setUserDisplayName] = useState('');
   const [loading, setLoading] = useState(true);
   const [notificationToast, setNotificationToast] = useState(null);
@@ -17,6 +19,8 @@ export function AuthProvider({ children }) {
       setCurrentUser(null);
       setUserRole(null);
       setUserFamilyId(null);
+      setUserFamilyIds([]);
+      setActiveFamilyId(null);
       setUserDisplayName('');
       setLoading(false);
       return;
@@ -26,7 +30,35 @@ export function AuthProvider({ children }) {
       const data = await authApi.getMe();
       setCurrentUser({ uid: data.id, ...data });
       setUserRole(data.role);
-      setUserFamilyId(data.family_id);
+
+      const fids = data.family_ids && data.family_ids.length > 0
+        ? data.family_ids
+        : (data.family_id ? [data.family_id] : []);
+      setUserFamilyIds(fids);
+
+      // Determine active family id
+      const storedActive = localStorage.getItem('sabji_active_family_id');
+      let effectiveActive = null;
+      if (data.role === 'Admin') {
+        effectiveActive = storedActive || null;
+      } else {
+        if (storedActive && fids.includes(storedActive)) {
+          effectiveActive = storedActive;
+        } else if (fids.length > 0) {
+          effectiveActive = fids[0];
+        } else {
+          effectiveActive = null;
+        }
+      }
+
+      if (effectiveActive) {
+        localStorage.setItem('sabji_active_family_id', effectiveActive);
+      } else {
+        localStorage.removeItem('sabji_active_family_id');
+      }
+
+      setActiveFamilyId(effectiveActive);
+      setUserFamilyId(effectiveActive);
       setUserDisplayName(data.display_name || '');
     } catch (e) {
       console.error('Failed to load user profile:', e);
@@ -34,9 +66,27 @@ export function AuthProvider({ children }) {
       setCurrentUser(null);
       setUserRole(null);
       setUserFamilyId(null);
+      setUserFamilyIds([]);
+      setActiveFamilyId(null);
       setUserDisplayName('');
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const switchFamily = useCallback(async (familyId) => {
+    const targetId = familyId || null;
+    if (targetId) {
+      localStorage.setItem('sabji_active_family_id', targetId);
+    } else {
+      localStorage.removeItem('sabji_active_family_id');
+    }
+    setActiveFamilyId(targetId);
+    setUserFamilyId(targetId);
+    try {
+      await authApi.updateMe({ family_id: targetId || '' });
+    } catch (err) {
+      console.warn('Could not sync active family to server:', err);
     }
   }, []);
 
@@ -44,11 +94,11 @@ export function AuthProvider({ children }) {
     fetchProfile();
   }, [fetchProfile]);
 
-  // Connect WebSocket for live notifications
+  // Connect WebSocket for live notifications on active family
   useEffect(() => {
     if (!currentUser) return;
 
-    const ws = connectWebSocket(userFamilyId, (msg) => {
+    const ws = connectWebSocket(activeFamilyId, (msg) => {
       if (msg.event === 'order_updated') {
         setNotificationToast({
           title: '🛒 Order Updated',
@@ -62,7 +112,7 @@ export function AuthProvider({ children }) {
     return () => {
       if (ws) ws.close();
     };
-  }, [currentUser, userFamilyId]);
+  }, [currentUser, activeFamilyId]);
 
   const login = async (email, password) => {
     await authApi.login(email, password);
@@ -71,16 +121,22 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     tokens.clear();
+    localStorage.removeItem('sabji_active_family_id');
     setCurrentUser(null);
     setUserRole(null);
     setUserFamilyId(null);
+    setUserFamilyIds([]);
+    setActiveFamilyId(null);
     setUserDisplayName('');
   };
 
   const value = {
     currentUser,
     userRole,
-    userFamilyId,
+    userFamilyId: activeFamilyId,
+    activeFamilyId,
+    userFamilyIds,
+    switchFamily,
     userDisplayName,
     notificationToast,
     setNotificationToast,
