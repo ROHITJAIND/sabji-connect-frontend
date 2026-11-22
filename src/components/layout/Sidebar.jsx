@@ -1,4 +1,4 @@
-﻿import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import { useFamilyMembers } from '../../hooks/useFamilyMembers';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -128,6 +128,16 @@ export default function Sidebar({ isOpen, onClose, onSelectMember }) {
                       <UsersRound size={18} className="text-purple-500" />
                     </div>
                     <span className="font-semibold text-gray-700">Family</span>
+                    <ChevronRight size={16} className="text-gray-300 ml-auto" />
+                  </button>
+                  <button
+                    onClick={() => { onClose(); navigate('/users'); }}
+                    className="w-full flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors text-left"
+                  >
+                    <div className="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center">
+                      <Users size={18} className="text-amber-600" />
+                    </div>
+                    <span className="font-semibold text-gray-700">Users</span>
                     <ChevronRight size={16} className="text-gray-300 ml-auto" />
                   </button>
                   <button

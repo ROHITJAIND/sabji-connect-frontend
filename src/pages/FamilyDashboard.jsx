@@ -1,347 +1,399 @@
-﻿import { useState } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import Navbar from '../components/layout/Navbar';
 import Sidebar from '../components/layout/Sidebar';
 import MemberOrdersOverlay from '../components/MemberOrdersOverlay';
 import { useFamilies } from '../hooks/useFamilies';
 import { useFamilyMembers } from '../hooks/useFamilyMembers';
 import { authApi, familiesApi } from '../api';
-
-
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, X, Edit2, Trash2, User, Shield, ShoppingCart, UserPlus, ChevronRight, ArrowLeft, Save, Eye, EyeOff, Home, Users, Image as ImageIcon } from 'lucide-react';
-import { uploadImage } from '../utils/storage';
-import Cropper from 'react-easy-crop';
-import getCroppedImg from '../utils/cropImage';
+import {
+  Plus,
+  X,
+  Edit2,
+  Trash2,
+  User,
+  Shield,
+  ShoppingCart,
+  UserPlus,
+  ChevronRight,
+  ArrowLeft,
+  Home,
+  Users,
+  Eye,
+  Check,
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
 const ROLE_COLORS = {
-  Admin:  { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-200', gradient: 'from-purple-500 to-violet-600' },
-  Sethji: { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200', gradient: 'from-orange-500 to-amber-600' },
-  Hukum:  { bg: 'bg-blue-100',   text: 'text-blue-700',   border: 'border-blue-200',   gradient: 'from-blue-500 to-indigo-600' },
+  Admin:  { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-300', icon: Shield },
+  Sethji: { bg: 'bg-amber-100',  text: 'text-amber-800',  border: 'border-amber-300',  icon: ShoppingCart },
+  Hukum:  { bg: 'bg-blue-100',   text: 'text-blue-700',   border: 'border-blue-300',   icon: User },
 };
 
-const ROLE_ICONS = { Admin: Shield, Sethji: ShoppingCart, Hukum: User };
-
-/* â”€â”€â”€ Member Card â”€â”€â”€ */
-function MemberCard({ member, onEdit, onDelete, onViewOrders }) {
+/* ─── Member Card in Family Detail ─── */
+function MemberCard({ member, onEditRole, onRemove, onViewOrders }) {
   const colors = ROLE_COLORS[member.role] || ROLE_COLORS.Hukum;
-  const initials = member.displayName
-    ? member.displayName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) : '?';
-  const RIcon = ROLE_ICONS[member.role] || User;
+  const RIcon = colors.icon;
+  const initials = member.displayName || member.display_name
+    ? (member.displayName || member.display_name).split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+    : '?';
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm overflow-hidden">
-      <div className="flex items-center gap-4 p-4">
-        <div className={`w-14 h-14 rounded-full ${colors.bg} ${colors.border} border-2 flex items-center justify-center flex-shrink-0 overflow-hidden`}>
-          {member.photoURL ? (
-            <img src={member.photoURL} alt={member.displayName} className="w-full h-full object-cover" />
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-white rounded-2xl border-2 border-gray-900 shadow-[3px_3px_0px_rgba(0,0,0,1)] p-4 flex items-center justify-between gap-3"
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <div className={`w-12 h-12 rounded-full ${colors.bg} border-2 ${colors.border} flex items-center justify-center flex-shrink-0 overflow-hidden`}>
+          {member.avatarUrl || member.photoURL ? (
+            <img src={member.avatarUrl || member.photoURL} alt={member.displayName} className="w-full h-full object-cover" />
           ) : (
-            <span className={`${colors.text} font-black text-lg`}>{initials}</span>
+            <span className={`font-black text-sm ${colors.text}`}>{initials}</span>
           )}
         </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-gray-800 truncate">{member.displayName || 'Unnamed'}</h3>
-          <p className="text-xs text-gray-400 font-semibold truncate">@{member.username || member.email?.split('@')[0]}</p>
+
+        <div className="min-w-0">
+          <h3 className="font-bold text-gray-900 truncate">{member.displayName || member.display_name || 'Unnamed'}</h3>
+          <p className="text-xs text-gray-500 font-semibold truncate">{member.email}</p>
           <div className="flex items-center gap-1.5 mt-1">
-            <RIcon size={12} className={colors.text} />
-            <span className={`text-xs font-bold uppercase tracking-wide ${colors.text}`}>{member.role}</span>
+            <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md ${colors.bg} ${colors.text}`}>
+              <RIcon size={11} />
+              {member.role}
+            </span>
           </div>
         </div>
-        <div className="flex gap-2 flex-shrink-0">
-          {member.role === 'Hukum' && (
-            <motion.button whileTap={{ scale: 0.9 }} onClick={() => onViewOrders(member)}
-              className="w-9 h-9 rounded-full bg-purple-50 hover:bg-purple-100 flex items-center justify-center transition-colors">
-              <Eye size={16} className="text-purple-500" />
-            </motion.button>
-          )}
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => onEdit(member)}
-            className="w-9 h-9 rounded-full bg-blue-50 hover:bg-blue-100 flex items-center justify-center transition-colors">
-            <Edit2 size={16} className="text-blue-500" />
-          </motion.button>
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => onDelete(member)}
-            className="w-9 h-9 rounded-full bg-red-50 hover:bg-red-100 flex items-center justify-center transition-colors">
-            <Trash2 size={16} className="text-red-500" />
-          </motion.button>
-        </div>
+      </div>
+
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {member.role === 'Hukum' && (
+          <button
+            onClick={() => onViewOrders(member)}
+            className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 flex items-center justify-center border border-purple-200 transition-colors"
+            title="View member orders"
+          >
+            <Eye size={16} />
+          </button>
+        )}
+        <button
+          onClick={() => onEditRole(member)}
+          className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center border border-blue-200 transition-colors"
+          title="Change role"
+        >
+          <Edit2 size={16} />
+        </button>
+        <button
+          onClick={() => onRemove(member)}
+          className="w-9 h-9 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-center border border-red-200 transition-colors"
+          title="Remove from family"
+        >
+          <Trash2 size={16} />
+        </button>
       </div>
     </motion.div>
   );
 }
 
-/* â”€â”€â”€ Image Cropper Modal â”€â”€â”€ */
-function ImageCropperModal({ imageSrc, onCropComplete, onCancel }) {
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+/* ─── Add Member Dropdown Modal ─── */
+function AddMemberModal({ familyId, currentMemberIds, onClose, onMemberAdded }) {
+  const [allUsers, setAllUsers] = useState([]);
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [selectedRole, setSelectedRole] = useState('Hukum');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
 
-  const handleCropComplete = (croppedArea, croppedAreaPixels) => {
-    setCroppedAreaPixels(croppedAreaPixels);
-  };
+  useEffect(() => {
+    async function loadUsers() {
+      try {
+        const users = await authApi.adminListUsers(false);
+        setAllUsers(users);
+        // Pre-select first eligible user if available
+        const eligible = users.filter(u => !currentMemberIds.includes(u.id));
+        if (eligible.length > 0) {
+          setSelectedUserId(eligible[0].id);
+        }
+      } catch (err) {
+        console.error('Failed to load users:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadUsers();
+  }, [currentMemberIds]);
 
-  const handleConfirm = async () => {
+  const eligibleUsers = allUsers.filter(u => !currentMemberIds.includes(u.id));
+
+  const handleAdd = async (e) => {
+    e.preventDefault();
+    if (!selectedUserId) {
+      setError('Please select a user to add');
+      return;
+    }
+
+    setSubmitting(true);
+    setError('');
     try {
-      const croppedImage = await getCroppedImg(imageSrc, croppedAreaPixels);
-      onCropComplete(croppedImage);
-    } catch (e) {
-      console.error(e);
-      alert('Failed to crop image');
+      await familiesApi.addMember(familyId, selectedUserId, selectedRole);
+      onMemberAdded();
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Failed to add user to family');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/90 flex flex-col" onClick={(e) => e.stopPropagation()}>
-      <div className="relative flex-1 w-full">
-        <Cropper
-          image={imageSrc}
-          crop={crop}
-          zoom={zoom}
-          aspect={1}
-          cropShape="round"
-          showGrid={false}
-          onCropChange={setCrop}
-          onCropComplete={handleCropComplete}
-          onZoomChange={setZoom}
-        />
-      </div>
-      <div className="p-4 bg-white flex flex-col gap-4 pb-8">
-        <div className="flex items-center gap-4">
-          <span className="text-sm font-bold text-gray-500">Zoom</span>
-          <input
-            type="range"
-            value={zoom}
-            min={1}
-            max={3}
-            step={0.1}
-            aria-labelledby="Zoom"
-            onChange={(e) => setZoom(e.target.value)}
-            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-500"
-          />
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="bg-white rounded-3xl border-4 border-gray-900 shadow-[8px_8px_0px_rgba(0,0,0,1)] p-6 max-w-md w-full"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center pb-3 border-b-2 border-gray-200 mb-5">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center font-bold">
+              <UserPlus size={20} />
+            </div>
+            <h2 className="title-font text-xl font-black text-gray-900">Add Member to Family</h2>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100 text-gray-500">
+            <X size={22} />
+          </button>
         </div>
-        <div className="flex gap-4">
-          <button type="button" onClick={onCancel} className="flex-1 py-3 bg-gray-100 font-bold rounded-xl text-gray-600">Cancel</button>
-          <button type="button" onClick={handleConfirm} className="flex-1 py-3 bg-orange-500 font-bold rounded-xl text-white shadow-lg">Crop & Save</button>
-        </div>
-      </div>
-    </div>
+
+        {loading ? (
+          <div className="text-center py-8 text-gray-500 font-semibold">Loading available users...</div>
+        ) : eligibleUsers.length === 0 ? (
+          <div className="text-center py-6">
+            <p className="text-gray-600 font-bold mb-4">No available users to add!</p>
+            <p className="text-xs text-gray-400 mb-5">
+              All existing users are already members of this family. Please create a new user in the User Management section first.
+            </p>
+            <button
+              onClick={() => { onClose(); navigate('/users'); }}
+              className="btn-3d bg-orange-500 text-white px-5 py-2.5 font-bold text-sm w-full"
+            >
+              Go to User Management
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleAdd} className="flex flex-col gap-4">
+            <div>
+              <label className="block text-sm font-bold text-gray-800 mb-1">Select User from System</label>
+              <select
+                value={selectedUserId}
+                onChange={e => setSelectedUserId(e.target.value)}
+                required
+                className="w-full p-3 rounded-xl border-2 border-gray-900 font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+              >
+                {eligibleUsers.map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.display_name} ({u.email.split('@')[0]}) {u.family_id ? '· [Reassign]' : '· [Unassigned]'}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">Users are created in the Users section.</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-800 mb-1">Family Role</label>
+              <select
+                value={selectedRole}
+                onChange={e => setSelectedRole(e.target.value)}
+                className="w-full p-3 rounded-xl border-2 border-gray-900 font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+              >
+                <option value="Hukum">Hukum (Family Member / Order Requester)</option>
+                <option value="Sethji">Sethji (Market Buyer / Shopper)</option>
+                <option value="Admin">Admin (Family Co-Admin)</option>
+              </select>
+            </div>
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-sm font-semibold">
+                {error}
+              </div>
+            )}
+
+            <div className="flex gap-3 mt-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 py-3 rounded-xl font-bold text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="flex-1 btn-3d bg-orange-500 text-white py-3 rounded-xl font-bold disabled:opacity-50"
+              >
+                {submitting ? 'Adding...' : 'Add to Family'}
+              </button>
+            </div>
+          </form>
+        )}
+      </motion.div>
+    </motion.div>
   );
 }
 
-/* â”€â”€â”€ Add/Edit Member Form â”€â”€â”€ */
-function MemberForm({ familyId, existingMember, onClose, onSaved }) {
-  const isEditing = !!existingMember;
-  const [displayName, setDisplayName] = useState(existingMember?.displayName || '');
-  const [username, setUsername] = useState(existingMember?.email?.split('@')[0] || '');
-  const [password, setPassword] = useState('');
-  const [role, setRole] = useState(existingMember?.role || 'Hukum');
-  const [photoURL, setPhotoURL] = useState(existingMember?.photoURL || '');
-  const [imageFile, setImageFile] = useState(null);
-  const [imageToCrop, setImageToCrop] = useState(null);
-  const [showPassword, setShowPassword] = useState(false);
+/* ─── Edit Member Role Modal ─── */
+function EditRoleModal({ familyId, member, onClose, onRoleUpdated }) {
+  const [role, setRole] = useState(member.role || 'Hukum');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleFileChange = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      // Use createObjectURL instead of FileReader for much better mobile memory safety
-      setImageToCrop(URL.createObjectURL(file));
-      // DO NOT clear e.target.value here. On Android Chrome, clearing the input immediately
-      // destroys the native file descriptor for camera captures, breaking the blob URL!
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
     try {
-      let finalPhotoURL = photoURL;
-      if (imageFile) {
-        finalPhotoURL = await uploadImage(imageFile, 'profiles');
-      }
-
-      if (isEditing) {
-        await updateDoc(doc(db, 'users', existingMember.uid), {
-          displayName: displayName.trim(), role, photoURL: finalPhotoURL.trim(),
-        });
-      } else {
-        if (!username.trim() || !password || password.length < 6) {
-          setError('Username and password (min 6 chars) are required.');
-          setLoading(false);
-          return;
-        }
-
-        const cleanUsername = username.trim().replace(/\s+/g, '').toLowerCase();
-        const syntheticEmail = `${cleanUsername}@sabjiconnect.com`;
-
-        const cred = await createUserWithEmailAndPassword(secondaryAuth, syntheticEmail, password);
-        await setDoc(doc(db, 'users', cred.user.uid), {
-          email: syntheticEmail,
-          username: cleanUsername,
-          displayName: displayName.trim(),
-          role,
-          photoURL: finalPhotoURL.trim(),
-          familyId: familyId,
-          createdAt: new Date().toISOString(),
-        });
-        await signOut(secondaryAuth);
-      }
-      onSaved();
+      await familiesApi.updateMemberRole(familyId, member.id || member.uid, role);
+      onRoleUpdated();
       onClose();
     } catch (err) {
-      if (err.code === 'auth/email-already-in-use') setError('This username is already taken.');
-      else if (err.code === 'auth/weak-password') setError('Password must be at least 6 characters.');
-      else if (err.code === 'auth/invalid-email') setError('Invalid username format.');
-      else setError(err.message || 'Something went wrong.');
+      alert('Failed to update role: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[80] bg-black/50 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-3xl max-h-[90vh] overflow-y-auto shadow-2xl"
-        onClick={e => e.stopPropagation()}>
-        <div className="px-5 pt-5 pb-4 border-b border-gray-200">
-          <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-4 sm:hidden" />
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold text-gray-800">{isEditing ? 'Edit Member' : 'Add New Member'}</h2>
-            <button onClick={onClose} className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"><X size={18} /></button>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="bg-white rounded-3xl border-4 border-gray-900 shadow-[8px_8px_0px_rgba(0,0,0,1)] p-6 max-w-sm w-full"
+        onClick={e => e.stopPropagation()}
+      >
+        <h3 className="title-font text-lg font-black text-gray-900 mb-2">Change Role</h3>
+        <p className="text-xs text-gray-500 mb-4 font-semibold">Updating role for {member.displayName || member.display_name}</p>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <select
+            value={role}
+            onChange={e => setRole(e.target.value)}
+            className="w-full p-3 rounded-xl border-2 border-gray-900 font-semibold text-gray-900 bg-white"
+          >
+            <option value="Hukum">Hukum (Requester)</option>
+            <option value="Sethji">Sethji (Shopper)</option>
+            <option value="Admin">Admin</option>
+          </select>
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3 rounded-xl font-bold text-gray-700 bg-gray-100 hover:bg-gray-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 btn-3d bg-orange-500 text-white py-3 rounded-xl font-bold"
+            >
+              {loading ? 'Saving...' : 'Save Role'}
+            </button>
           </div>
-        </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          {/* Role selector */}
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Role</label>
-            <div className="flex gap-2">
-              {['Hukum', 'Sethji'].map(r => {
-                const c = ROLE_COLORS[r]; const RI = ROLE_ICONS[r];
-                return (
-                  <button key={r} type="button" onClick={() => setRole(r)}
-                    className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border-2 transition-all ${
-                      role === r ? `${c.bg} ${c.text} ${c.border}` : 'bg-gray-50 text-gray-400 border-gray-200'
-                    }`}><RI size={16} />{r}</button>
-                );
-              })}
-            </div>
-          </div>
-          {/* Display Name */}
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Display Name</label>
-            <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)}
-              placeholder="e.g. Rohit Jain" required
-              className="w-full p-3 border-2 border-gray-200 rounded-xl font-semibold text-gray-800 focus:border-orange-400 focus:outline-none transition-colors" />
-          </div>
-          {/* Photo Upload */}
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Profile Photo <span className="text-gray-400 font-normal">(optional)</span></label>
-            <input type="file" accept="image/*" onChange={handleFileChange}
-              className="w-full p-2 border-2 border-gray-200 rounded-xl font-semibold text-gray-800 focus:border-orange-400 focus:outline-none transition-colors file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-orange-100 file:text-orange-700 file:font-bold hover:file:bg-orange-200" />
-            {(imageFile || photoURL) && (
-              <div className="mt-2 w-16 h-16 rounded-full border-2 border-gray-200 overflow-hidden bg-gray-50 flex items-center justify-center relative group">
-                {imageFile ? (
-                  <img src={URL.createObjectURL(imageFile)} alt="Preview" className="w-full h-full object-cover" />
-                ) : photoURL ? (
-                  <img src={photoURL} alt="Current" className="w-full h-full object-cover" />
-                ) : <ImageIcon className="text-gray-400" />}
-                
-                {imageFile && (
-                  <button 
-                    type="button" 
-                    onClick={() => setImageFile(null)} 
-                    className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white"
-                  >
-                    <X size={20} />
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-          {/* Username */}
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Username</label>
-            <input type="text" value={username} onChange={e => setUsername(e.target.value)}
-              placeholder="e.g. rohit" disabled={isEditing} required={!isEditing}
-              className={`w-full p-3 border-2 border-gray-200 rounded-xl font-semibold text-gray-800 focus:border-orange-400 focus:outline-none transition-colors ${isEditing ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`} />
-            {isEditing && <p className="text-xs text-gray-400 mt-1">Username cannot be changed.</p>}
-          </div>
-          {/* Password */}
-          {!isEditing && (
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Password</label>
-              <div className="relative">
-                <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
-                  placeholder="Min 6 characters" required minLength={6}
-                  className="w-full p-3 pr-12 border-2 border-gray-200 rounded-xl font-semibold text-gray-800 focus:border-orange-400 focus:outline-none transition-colors" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </div>
-          )}
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-              <p className="text-sm text-red-600 font-semibold">{error}</p>
-            </div>
-          )}
-          <motion.button whileTap={{ scale: 0.97 }} type="submit" disabled={loading}
-            className={`w-full py-4 rounded-2xl font-bold text-lg text-white flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-all ${
-              loading ? 'bg-gray-300 cursor-not-allowed' : `bg-gradient-to-r ${ROLE_COLORS[role]?.gradient || 'from-blue-500 to-indigo-600'} hover:opacity-90`
-            }`}>
-            {loading ? 'Saving...' : isEditing ? <><Save size={20} /> Update Member</> : <><UserPlus size={20} /> Create {role}</>}
-          </motion.button>
         </form>
       </motion.div>
-
-      {/* Render Cropper Modal conditionally */}
-      {imageToCrop && (
-        <ImageCropperModal 
-          imageSrc={imageToCrop} 
-          onCropComplete={(croppedFile) => {
-            setImageFile(croppedFile);
-            setImageToCrop(null);
-          }}
-          onCancel={() => setImageToCrop(null)} 
-        />
-      )}
     </motion.div>
   );
 }
 
-/* â”€â”€â”€ Create / Edit Family Modal â”€â”€â”€ */
-function FamilyNameModal({ existingFamily, onClose, onSave }) {
-  const [name, setName] = useState(existingFamily?.name || '');
+/* ─── Create Family Modal ─── */
+function CreateFamilyModal({ onClose, onFamilyCreated }) {
+  const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim()) return;
+
     setLoading(true);
-    await onSave(name.trim());
-    setLoading(false);
-    onClose();
+    setError('');
+    try {
+      await familiesApi.create(name.trim());
+      onFamilyCreated();
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Failed to create family');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center px-4" onClick={onClose}>
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-bold text-gray-800 mb-4">{existingFamily ? 'Rename Family' : 'Create New Family'}</h3>
-        <form onSubmit={handleSubmit}>
-          <input type="text" value={name} onChange={e => setName(e.target.value)}
-            placeholder="e.g. Jain Family" autoFocus required
-            className="w-full p-3 border-2 border-gray-200 rounded-xl font-semibold text-gray-800 focus:border-orange-400 focus:outline-none transition-colors mb-4" />
-          <div className="flex gap-3">
-            <button type="button" onClick={onClose}
-              className="flex-1 py-3 rounded-xl font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">Cancel</button>
-            <motion.button whileTap={{ scale: 0.95 }} type="submit" disabled={loading}
-              className="flex-1 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:opacity-90 transition-all disabled:opacity-50">
-              {loading ? 'Saving...' : existingFamily ? 'Rename' : 'Create'}
-            </motion.button>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="bg-white rounded-3xl border-4 border-gray-900 shadow-[8px_8px_0px_rgba(0,0,0,1)] p-6 max-w-sm w-full"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center pb-3 border-b-2 border-gray-200 mb-4">
+          <h3 className="title-font text-lg font-black text-gray-900">Create New Family</h3>
+          <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100 text-gray-500">
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label className="block text-sm font-bold text-gray-800 mb-1">Family Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="e.g. Shah Family"
+              autoFocus
+              required
+              className="w-full p-3 rounded-xl border-2 border-gray-900 font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+          </div>
+
+          {error && <p className="text-xs text-red-600 font-bold">{error}</p>}
+
+          <div className="flex gap-3 mt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3 rounded-xl font-bold text-gray-700 bg-gray-100 hover:bg-gray-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 btn-3d bg-orange-500 text-white py-3 rounded-xl font-bold disabled:opacity-50"
+            >
+              {loading ? 'Creating...' : 'Create'}
+            </button>
           </div>
         </form>
       </motion.div>
@@ -349,203 +401,244 @@ function FamilyNameModal({ existingFamily, onClose, onSave }) {
   );
 }
 
-/* â”€â”€â”€ Family Detail (members inside a family) â”€â”€â”€ */
+/* ─── Family Detail View (Members in a selected Family) ─── */
 function FamilyDetail({ family, onBack }) {
-  const { members, loading } = useFamilyMembers(family.id);
-  const [showForm, setShowForm] = useState(false);
-  const [editingMember, setEditingMember] = useState(null);
-  const [deletingMember, setDeletingMember] = useState(null);
+  const { members, loading, refreshMembers } = useFamilyMembers(family.id);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [editingRoleMember, setEditingRoleMember] = useState(null);
   const [viewingOrdersFor, setViewingOrdersFor] = useState(null);
 
-  const hukums = members.filter(m => m.role === 'Hukum');
-  const sethjis = members.filter(m => m.role === 'Sethji');
+  const handleRemoveMember = async (member) => {
+    const memberName = member.displayName || member.display_name || member.email;
+    if (!confirm(`Remove ${memberName} from ${family.name}? They will become an unassigned user.`)) return;
 
-  const handleDelete = async (member) => {
-    if (!confirm(`Remove ${member.displayName || member.username || member.email} from this family?`)) return;
     try {
-      await deleteDoc(doc(db, 'users', member.uid));
-    } catch (e) {
-      alert('Failed to delete: ' + e.message);
+      await familiesApi.removeMember(family.id, member.id || member.uid);
+      await refreshMembers();
+    } catch (err) {
+      alert('Failed to remove member: ' + err.message);
     }
   };
+
+  const currentMemberIds = (members || []).map(m => m.id || m.uid);
 
   return (
     <>
       {/* Header */}
-      <div className="py-5">
-        <motion.button whileTap={{ scale: 0.95 }} onClick={onBack}
-          className="flex items-center gap-2 mb-3 text-gray-500 hover:text-gray-700 font-semibold text-sm transition-colors">
+      <div className="pt-4 pb-6">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 mb-4 text-gray-600 hover:text-gray-900 font-bold text-sm transition-colors"
+        >
           <ArrowLeft size={18} /> Back to Families
-        </motion.button>
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-100 to-amber-100 border-2 border-orange-200 flex items-center justify-center">
-            <Home size={22} className="text-orange-600" />
+        </button>
+
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-orange-100 border-2 border-orange-300 flex items-center justify-center text-orange-600 shadow-sm">
+              <Home size={22} />
+            </div>
+            <div>
+              <h1 className="title-font text-2xl font-black text-gray-900">{family.name}</h1>
+              <p className="text-xs font-bold text-gray-500">
+                {members.length} {members.length === 1 ? 'member' : 'members'} in family
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-black text-gray-900">{family.name}</h1>
-            <p className="text-sm text-gray-400 font-semibold">{members.length} members Â· {hukums.length} Hukum Â· {sethjis.length} Sethji</p>
-          </div>
+
+          <button
+            onClick={() => setShowAddMemberModal(true)}
+            className="btn-3d bg-orange-500 text-white px-4 py-2.5 text-sm font-bold flex items-center gap-2"
+          >
+            <UserPlus size={18} /> Add Member
+          </button>
         </div>
       </div>
 
-      {/* Members */}
+      {/* Member List */}
       {loading ? (
-        <div className="text-center py-20 text-gray-400"><p className="font-semibold">Loading...</p></div>
-      ) : members.length > 0 ? (
-        <div className="space-y-3">
-          {members.map(member => (
-            <MemberCard key={member.uid} member={member}
-              onEdit={(m) => { setEditingMember(m); setShowForm(true); }}
-              onDelete={handleDelete}
-              onViewOrders={(m) => setViewingOrdersFor(m)} />
-          ))}
+        <div className="text-center py-20 text-gray-400 font-semibold">Loading family members...</div>
+      ) : members.length === 0 ? (
+        <div className="bg-white border-2 border-dashed border-gray-300 rounded-3xl p-10 text-center my-6">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3 text-gray-400">
+            <Users size={30} />
+          </div>
+          <h3 className="font-bold text-lg text-gray-700">No members yet</h3>
+          <p className="text-sm text-gray-400 mt-1 mb-4">Add members from your standalone users using the dropdown.</p>
+          <button
+            onClick={() => setShowAddMemberModal(true)}
+            className="btn-3d bg-orange-500 text-white px-5 py-2 font-bold text-sm"
+          >
+            <UserPlus size={16} className="inline mr-1" /> Add First Member
+          </button>
         </div>
       ) : (
-        <div className="text-center py-20 text-gray-400">
-          <p className="text-5xl mb-3">ðŸ‘¥</p>
-          <p className="font-semibold text-lg">No members yet</p>
-          <p className="text-sm mt-1">Add Hukums and Sethjis to this family</p>
+        <div className="space-y-3">
+          {members.map(member => (
+            <MemberCard
+              key={member.id || member.uid}
+              member={member}
+              onEditRole={m => setEditingRoleMember(m)}
+              onRemove={handleRemoveMember}
+              onViewOrders={m => setViewingOrdersFor(m)}
+            />
+          ))}
         </div>
       )}
 
-      {/* Add Member FAB */}
-      <motion.button whileTap={{ scale: 0.9 }}
-        onClick={() => { setEditingMember(null); setShowForm(true); }}
-        className="fixed bottom-6 right-6 z-50 w-16 h-16 bg-gradient-to-br from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700
-          text-white rounded-full shadow-xl flex items-center justify-center transition-colors">
-        <UserPlus size={24} />
-      </motion.button>
-
+      {/* Add Member Dropdown Modal */}
       <AnimatePresence>
-        {showForm && (
-          <MemberForm
+        {showAddMemberModal && (
+          <AddMemberModal
             familyId={family.id}
-            existingMember={editingMember}
-            onClose={() => { setShowForm(false); setEditingMember(null); }}
-            onSaved={() => {}}
-          />
-        )}
-        {viewingOrdersFor && (
-          <MemberOrdersOverlay
-            member={viewingOrdersFor}
-            onClose={() => setViewingOrdersFor(null)}
+            currentMemberIds={currentMemberIds}
+            onClose={() => setShowAddMemberModal(false)}
+            onMemberAdded={refreshMembers}
           />
         )}
       </AnimatePresence>
+
+      {/* Edit Role Modal */}
+      <AnimatePresence>
+        {editingRoleMember && (
+          <EditRoleModal
+            familyId={family.id}
+            member={editingRoleMember}
+            onClose={() => setEditingRoleMember(null)}
+            onRoleUpdated={refreshMembers}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Member Orders Overlay */}
+      {viewingOrdersFor && (
+        <MemberOrdersOverlay
+          member={viewingOrdersFor}
+          onClose={() => setViewingOrdersFor(null)}
+        />
+      )}
     </>
   );
 }
 
-/* â”€â”€â”€ Main Family Dashboard â”€â”€â”€ */
+/* ─── Main Family Dashboard ─── */
 export default function FamilyDashboard() {
-  const { families, loading, createFamily, updateFamily, deleteFamily } = useFamilies();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { families, loading, refreshFamilies, deleteFamily } = useFamilies();
   const [selectedFamily, setSelectedFamily] = useState(null);
-  const [showFamilyModal, setShowFamilyModal] = useState(false);
-  const [editingFamily, setEditingFamily] = useState(null);
+  const [showCreateFamilyModal, setShowCreateFamilyModal] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const handleCreateFamily = async (name) => {
-    await createFamily(name);
-  };
+  const handleDeleteFamily = async (family, e) => {
+    e.stopPropagation();
+    if (!confirm(`Delete "${family.name}"? Members inside will become unassigned users.`)) return;
 
-  const handleRenameFamily = async (name) => {
-    if (editingFamily) {
-      await updateFamily(editingFamily.id, { name });
+    try {
+      await deleteFamily(family.id);
+      if (selectedFamily?.id === family.id) {
+        setSelectedFamily(null);
+      }
+    } catch (err) {
+      alert('Failed to delete family: ' + err.message);
     }
   };
 
-  const handleDeleteFamily = async (family) => {
-    if (!confirm(`Delete "${family.name}" and all its data? This cannot be undone.`)) return;
-    await deleteFamily(family.id);
-  };
-
   return (
-    <div className="flex flex-col h-full bg-gray-50">
+    <div className="min-h-screen pb-24 bg-gray-50 flex flex-col">
       <Navbar onMenuOpen={() => setSidebarOpen(true)} />
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="flex-1 overflow-y-auto pb-28 px-4 max-w-2xl mx-auto w-full">
-
-        {!selectedFamily ? (
-        /* â•â•â• FAMILY LIST VIEW â•â•â• */
-        <>
-          <div className="py-5">
-            <div className="flex items-center gap-3 mb-1">
-              <a href="/" className="text-gray-400 hover:text-gray-600 transition-colors"><ArrowLeft size={20} /></a>
-              <h1 className="text-2xl font-black text-gray-900">Families</h1>
-            </div>
-            <p className="text-sm text-gray-400 font-semibold ml-8">{families.length} famil{families.length !== 1 ? 'ies' : 'y'}</p>
-          </div>
-
-          {loading ? (
-            <div className="text-center py-20 text-gray-400"><p className="font-semibold">Loading...</p></div>
-          ) : families.length > 0 ? (
-            <div className="space-y-3">
-              {families.map((family, idx) => (
-                <motion.div key={family.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm overflow-hidden hover:border-orange-300 hover:shadow-md transition-all">
-                  <button onClick={() => setSelectedFamily(family)}
-                    className="w-full flex items-center gap-4 p-5 text-left">
-                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-orange-100 to-amber-100 border-2 border-orange-200 flex items-center justify-center flex-shrink-0">
-                      <Home size={24} className="text-orange-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-gray-800 text-lg truncate">{family.name}</h3>
-                      <p className="text-xs text-gray-400 font-semibold mt-0.5">
-                        Tap to manage members
-                      </p>
-                    </div>
-                    <ChevronRight size={20} className="text-gray-300 flex-shrink-0" />
-                  </button>
-                  {/* Quick action buttons */}
-                  <div className="flex border-t border-gray-100">
-                    <button onClick={(e) => { e.stopPropagation(); setEditingFamily(family); setShowFamilyModal(true); }}
-                      className="flex-1 py-2.5 text-sm font-semibold text-blue-500 hover:bg-blue-50 transition-colors flex items-center justify-center gap-1.5">
-                      <Edit2 size={14} /> Rename
-                    </button>
-                    <div className="w-px bg-gray-100" />
-                    <button onClick={(e) => { e.stopPropagation(); handleDeleteFamily(family); }}
-                      className="flex-1 py-2.5 text-sm font-semibold text-red-500 hover:bg-red-50 transition-colors flex items-center justify-center gap-1.5">
-                      <Trash2 size={14} /> Delete
-                    </button>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-20 text-gray-400">
-              <p className="text-5xl mb-3">ðŸ </p>
-              <p className="font-semibold text-lg">No families yet</p>
-              <p className="text-sm mt-1">Create your first family to get started</p>
-            </div>
-          )}
-
-          {/* Create Family FAB */}
-          <motion.button whileTap={{ scale: 0.9 }}
-            onClick={() => { setEditingFamily(null); setShowFamilyModal(true); }}
-            className="fixed bottom-6 right-6 z-50 w-16 h-16 bg-gradient-to-br from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700
-              text-white rounded-full shadow-xl flex items-center justify-center transition-colors">
-            <Plus size={28} strokeWidth={2.5} />
-          </motion.button>
-        </>
+      <div className="max-w-2xl mx-auto w-full px-4 flex-1">
+        {selectedFamily ? (
+          <FamilyDetail
+            family={selectedFamily}
+            onBack={() => setSelectedFamily(null)}
+          />
         ) : (
-        /* â•â•â• FAMILY DETAIL VIEW â•â•â• */
-        <FamilyDetail family={selectedFamily} onBack={() => setSelectedFamily(null)} />
+          <>
+            {/* Header */}
+            <div className="flex items-center justify-between gap-4 pt-6 pb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-orange-100 border-2 border-orange-300 flex items-center justify-center text-orange-600 shadow-sm">
+                  <Home size={24} />
+                </div>
+                <div>
+                  <h1 className="title-font text-2xl font-black text-gray-900">Family Management</h1>
+                  <p className="text-sm font-semibold text-gray-500">Create & manage family groups</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowCreateFamilyModal(true)}
+                className="btn-3d bg-orange-500 text-white px-4 py-2.5 text-sm font-bold flex items-center gap-2"
+              >
+                <Plus size={18} /> New Family
+              </button>
+            </div>
+
+            {/* Families List */}
+            {loading ? (
+              <div className="text-center py-20 text-gray-400 font-semibold">Loading families...</div>
+            ) : families.length === 0 ? (
+              <div className="bg-white border-2 border-dashed border-gray-300 rounded-3xl p-10 text-center my-6">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3 text-gray-400">
+                  <Home size={30} />
+                </div>
+                <h3 className="font-bold text-lg text-gray-700">No families found</h3>
+                <p className="text-sm text-gray-400 mt-1 mb-4">Create your first family to start organizing members.</p>
+                <button
+                  onClick={() => setShowCreateFamilyModal(true)}
+                  className="btn-3d bg-orange-500 text-white px-5 py-2 font-bold text-sm"
+                >
+                  <Plus size={16} className="inline mr-1" /> Create Family
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {families.map(f => (
+                  <motion.div
+                    key={f.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    onClick={() => setSelectedFamily(f)}
+                    className="bg-white rounded-2xl border-2 border-gray-900 shadow-[4px_4px_0px_rgba(0,0,0,1)] p-4 flex items-center justify-between cursor-pointer hover:bg-orange-50/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-orange-100 border-2 border-orange-200 flex items-center justify-center text-orange-600 font-bold">
+                        <Home size={22} />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-lg text-gray-900">{f.name}</h3>
+                        <p className="text-xs font-semibold text-gray-500">Tap to manage members</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={e => handleDeleteFamily(f, e)}
+                        className="w-9 h-9 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center transition-colors"
+                        title="Delete Family"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                      <ChevronRight size={20} className="text-gray-400" />
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      {/* Family Name Modal */}
+      {/* Create Family Modal */}
       <AnimatePresence>
-        {showFamilyModal && (
-          <FamilyNameModal
-            existingFamily={editingFamily}
-            onClose={() => { setShowFamilyModal(false); setEditingFamily(null); }}
-            onSave={editingFamily ? handleRenameFamily : handleCreateFamily}
+        {showCreateFamilyModal && (
+          <CreateFamilyModal
+            onClose={() => setShowCreateFamilyModal(false)}
+            onFamilyCreated={refreshFamilies}
           />
         )}
       </AnimatePresence>
     </div>
   );
 }
-

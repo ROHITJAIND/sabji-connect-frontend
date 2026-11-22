@@ -5,6 +5,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import HukumDashboard from './pages/HukumDashboard';
 import SethjiDashboard from './pages/SethjiDashboard';
 import FamilyDashboard from './pages/FamilyDashboard';
+import UsersPage from './pages/UsersPage';
 import ProfilePage from './pages/ProfilePage';
 import RequestedItems from './pages/RequestedItems';
 import AnalyticsPage from './pages/AnalyticsPage';
@@ -51,6 +52,7 @@ function App() {
             <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
             {/* Direct routes for direct access if needed */}
             <Route path="/admin" element={<PrivateRoute allowedRoles={['Admin']}><AdminDashboard /></PrivateRoute>} />
+            <Route path="/users" element={<PrivateRoute allowedRoles={['Admin']}><UsersPage /></PrivateRoute>} />
             <Route path="/family" element={<PrivateRoute allowedRoles={['Admin']}><FamilyDashboard /></PrivateRoute>} />
             <Route path="/requests" element={<PrivateRoute allowedRoles={['Admin']}><RequestedItems /></PrivateRoute>} />
             <Route path="/hukum" element={<PrivateRoute allowedRoles={['Hukum']}><HukumDashboard /></PrivateRoute>} />
