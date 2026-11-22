@@ -8,6 +8,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons.svg'],
+      workbox: {
+        navigateFallbackDenylist: [/^\/api/, /^\/ws/],
+      },
       manifest: {
         name: 'Sabji Connect',
         short_name: 'Sabji Connect',

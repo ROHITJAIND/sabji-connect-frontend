@@ -22,6 +22,8 @@ export async function request(endpoint, options = {}) {
   const url = `${API_BASE}${endpoint}`;
   const headers = {
     'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
     ...(options.headers || {}),
   };
 
@@ -30,7 +32,7 @@ export async function request(endpoint, options = {}) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  let res = await fetch(url, { ...options, headers });
+  let res = await fetch(url, { cache: 'no-store', ...options, headers });
 
   // Handle Token Expiry -> auto-refresh
   if (res.status === 401 && tokens.getRefresh()) {
