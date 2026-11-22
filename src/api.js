@@ -83,6 +83,13 @@ export const authApi = {
   updateMe: (data) => request('/auth/me', { method: 'PATCH', body: JSON.stringify(data) }),
   adminCreateUser: (userData) => request('/auth/users', { method: 'POST', body: JSON.stringify(userData) }),
   adminListUsers: (unassignedOnly = false) => request(`/auth/users?unassigned_only=${unassignedOnly}`),
+  adminUpdateUser: (userId, data) => request(`/auth/users/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  }),
+  adminDeleteUser: (userId) => request(`/auth/users/${userId}`, {
+    method: 'DELETE',
+  }),
 };
 
 // ── Catalog Endpoints ───────────────────────────────────────
@@ -113,6 +120,10 @@ export const familiesApi = {
   list: () => request('/families/'),
   create: (name) => request('/families/', { method: 'POST', body: JSON.stringify({ name }) }),
   get: (id) => request(`/families/${id}`),
+  update: (id, name) => request(`/families/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name }),
+  }),
   getMembers: (familyId) => request(`/families/${familyId}/members`),
   addMember: (familyId, userId, role) => request(`/families/${familyId}/members`, {
     method: 'POST',

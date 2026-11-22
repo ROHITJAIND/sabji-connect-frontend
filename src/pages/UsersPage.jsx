@@ -2,7 +2,18 @@
 import Navbar from '../components/layout/Navbar';
 import Sidebar from '../components/layout/Sidebar';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, UserPlus, X, Shield, ShoppingCart, User, Eye, EyeOff, Save, Check, Filter } from 'lucide-react';
+import {
+  Users,
+  UserPlus,
+  X,
+  Shield,
+  ShoppingCart,
+  User,
+  Eye,
+  EyeOff,
+  Edit2,
+  Trash2,
+} from 'lucide-react';
 import { authApi, familiesApi } from '../api';
 
 const ROLE_COLORS = {
@@ -41,7 +52,7 @@ function CreateUserModal({ onClose, onUserCreated }) {
         password: password,
         display_name: cleanName || cleanUser,
         role: role,
-        family_id: null, // Standalone user initially
+        family_id: null,
       });
 
       onUserCreated();
@@ -184,6 +195,181 @@ function CreateUserModal({ onClose, onUserCreated }) {
   );
 }
 
+/* ─── Edit User Modal ─── */
+function EditUserModal({ user, families, onClose, onUserUpdated }) {
+  const [displayName, setDisplayName] = useState(user.display_name || '');
+  const [role, setRole] = useState(user.role || 'Hukum');
+  const [familyId, setFamilyId] = useState(user.family_id || '');
+  const [newPassword, setNewPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (!displayName.trim()) {
+      setError('Display name is required.');
+      return;
+    }
+
+    if (newPassword && newPassword.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const payload = {
+        display_name: displayName.trim(),
+        role: role,
+        family_id: familyId || '',
+      };
+      if (newPassword.trim()) {
+        payload.password = newPassword.trim();
+      }
+
+      await authApi.adminUpdateUser(user.id, payload);
+      onUserUpdated();
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Failed to update user');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="bg-white rounded-3xl border-4 border-gray-900 shadow-[8px_8px_0px_rgba(0,0,0,1)] p-6 max-w-md w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center pb-3 border-b-2 border-gray-200 mb-5">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
+              <Edit2 size={20} />
+            </div>
+            <div>
+              <h2 className="title-font text-xl font-black text-gray-900">Edit User</h2>
+              <p className="text-xs text-gray-500 font-semibold">{user.email}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100 text-gray-500">
+            <X size={22} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label className="block text-sm font-bold text-gray-800 mb-1">Display Name</label>
+            <input
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              required
+              className="w-full p-3 rounded-xl border-2 border-gray-900 font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-800 mb-1">Role</label>
+            <div className="grid grid-cols-3 gap-2">
+              {['Hukum', 'Sethji', 'Admin'].map((r) => {
+                const colors = ROLE_COLORS[r];
+                const Icon = colors.icon;
+                const isSelected = role === r;
+                return (
+                  <button
+                    type="button"
+                    key={r}
+                    onClick={() => setRole(r)}
+                    className={`py-2.5 px-3 rounded-xl border-2 font-bold text-xs flex flex-col items-center gap-1 transition-all ${
+                      isSelected
+                        ? 'border-gray-900 bg-gray-900 text-white shadow-[2px_2px_0px_rgba(0,0,0,1)]'
+                        : `${colors.border} ${colors.bg} ${colors.text} hover:opacity-80`
+                    }`}
+                  >
+                    <Icon size={16} />
+                    {r}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-800 mb-1">Family Assignment</label>
+            <select
+              value={familyId}
+              onChange={(e) => setFamilyId(e.target.value)}
+              className="w-full p-3 rounded-xl border-2 border-gray-900 font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+            >
+              <option value="">(None - Unassigned)</option>
+              {families.map((f) => (
+                <option key={f.id} value={f.id}>
+                  🏠 {f.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-800 mb-1">
+              Reset Password <span className="text-xs text-gray-400 font-normal">(leave blank to keep current)</span>
+            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Min 6 characters"
+                className="w-full p-3 pr-10 rounded-xl border-2 border-gray-900 font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-3.5 text-gray-500 hover:text-gray-800"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+
+          {error && <p className="text-xs text-red-600 font-bold">{error}</p>}
+
+          <div className="flex gap-3 mt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3 rounded-xl font-bold text-gray-700 bg-gray-100 hover:bg-gray-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 btn-3d bg-orange-500 text-white py-3 rounded-xl font-bold disabled:opacity-50"
+            >
+              {loading ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 /* ─── Main Users Page ─── */
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
@@ -191,6 +377,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All'); // 'All' | 'Unassigned' | 'Assigned'
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
@@ -212,6 +399,19 @@ export default function UsersPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleDeleteUser = async (user) => {
+    const name = user.display_name || user.email;
+    if (!confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      await authApi.adminDeleteUser(user.id);
+      await fetchData();
+    } catch (err) {
+      alert('Failed to delete user: ' + (err.message || 'Unknown error'));
+    }
+  };
 
   // Family map for quick name lookup
   const familyMap = {};
@@ -331,6 +531,23 @@ export default function UsersPage() {
                       </div>
                     </div>
                   </div>
+
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button
+                      onClick={() => setEditingUser(user)}
+                      className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center border border-blue-200 transition-colors"
+                      title="Edit User"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteUser(user)}
+                      className="w-9 h-9 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-center border border-red-200 transition-colors"
+                      title="Delete User"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </motion.div>
               );
             })}
@@ -344,6 +561,18 @@ export default function UsersPage() {
           <CreateUserModal
             onClose={() => setShowCreateModal(false)}
             onUserCreated={fetchData}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Edit User Modal */}
+      <AnimatePresence>
+        {editingUser && (
+          <EditUserModal
+            user={editingUser}
+            families={families}
+            onClose={() => setEditingUser(null)}
+            onUserUpdated={fetchData}
           />
         )}
       </AnimatePresence>

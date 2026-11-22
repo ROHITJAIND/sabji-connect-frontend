@@ -401,23 +401,123 @@ function CreateFamilyModal({ onClose, onFamilyCreated }) {
   );
 }
 
+/* ─── Edit Family Modal ─── */
+function EditFamilyModal({ family, onClose, onFamilyUpdated }) {
+  const [name, setName] = useState(family?.name || '');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      setError('Family name is required');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await familiesApi.update(family.id, name.trim());
+      onFamilyUpdated({ ...family, name: name.trim() });
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Failed to update family');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="bg-white rounded-3xl border-4 border-gray-900 shadow-[8px_8px_0px_rgba(0,0,0,1)] p-6 max-w-sm w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center pb-3 border-b-2 border-gray-200 mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
+              <Edit2 size={16} />
+            </div>
+            <h3 className="title-font text-lg font-black text-gray-900">Edit Family</h3>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100 text-gray-500">
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label className="block text-sm font-bold text-gray-800 mb-1">Family Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+              required
+              className="w-full p-3 rounded-xl border-2 border-gray-900 font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+          </div>
+
+          {error && <p className="text-xs text-red-600 font-bold">{error}</p>}
+
+          <div className="flex gap-3 mt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3 rounded-xl font-bold text-gray-700 bg-gray-100 hover:bg-gray-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 btn-3d bg-orange-500 text-white py-3 rounded-xl font-bold disabled:opacity-50"
+            >
+              {loading ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 /* ─── Family Detail View (Members in a selected Family) ─── */
-function FamilyDetail({ family, onBack }) {
-  const { members, loading, refreshMembers } = useFamilyMembers(family.id);
+function FamilyDetail({ family, onBack, onFamilyUpdated, onDeleteFamily }) {
+  const [currentFamily, setCurrentFamily] = useState(family);
+  const { members, loading, refreshMembers } = useFamilyMembers(currentFamily.id);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [showEditFamilyModal, setShowEditFamilyModal] = useState(false);
   const [editingRoleMember, setEditingRoleMember] = useState(null);
   const [viewingOrdersFor, setViewingOrdersFor] = useState(null);
 
+  useEffect(() => {
+    setCurrentFamily(family);
+  }, [family]);
+
   const handleRemoveMember = async (member) => {
     const memberName = member.displayName || member.display_name || member.email;
-    if (!confirm(`Remove ${memberName} from ${family.name}? They will become an unassigned user.`)) return;
+    if (!confirm(`Remove ${memberName} from ${currentFamily.name}? They will become an unassigned user.`)) return;
 
     try {
-      await familiesApi.removeMember(family.id, member.id || member.uid);
+      await familiesApi.removeMember(currentFamily.id, member.id || member.uid);
       await refreshMembers();
     } catch (err) {
       alert('Failed to remove member: ' + err.message);
     }
+  };
+
+  const handleFamilyRenamed = (updated) => {
+    setCurrentFamily(updated);
+    if (onFamilyUpdated) onFamilyUpdated(updated);
   };
 
   const currentMemberIds = (members || []).map(m => m.id || m.uid);
@@ -439,7 +539,23 @@ function FamilyDetail({ family, onBack }) {
               <Home size={22} />
             </div>
             <div>
-              <h1 className="title-font text-2xl font-black text-gray-900">{family.name}</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="title-font text-2xl font-black text-gray-900">{currentFamily.name}</h1>
+                <button
+                  onClick={() => setShowEditFamilyModal(true)}
+                  className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center border border-blue-200 transition-colors"
+                  title="Rename Family"
+                >
+                  <Edit2 size={13} />
+                </button>
+                <button
+                  onClick={() => onDeleteFamily(currentFamily)}
+                  className="w-7 h-7 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-center border border-red-200 transition-colors"
+                  title="Delete Family"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
               <p className="text-xs font-bold text-gray-500">
                 {members.length} {members.length === 1 ? 'member' : 'members'} in family
               </p>
@@ -490,7 +606,7 @@ function FamilyDetail({ family, onBack }) {
       <AnimatePresence>
         {showAddMemberModal && (
           <AddMemberModal
-            familyId={family.id}
+            familyId={currentFamily.id}
             currentMemberIds={currentMemberIds}
             onClose={() => setShowAddMemberModal(false)}
             onMemberAdded={refreshMembers}
@@ -502,10 +618,21 @@ function FamilyDetail({ family, onBack }) {
       <AnimatePresence>
         {editingRoleMember && (
           <EditRoleModal
-            familyId={family.id}
+            familyId={currentFamily.id}
             member={editingRoleMember}
             onClose={() => setEditingRoleMember(null)}
             onRoleUpdated={refreshMembers}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Edit Family Modal */}
+      <AnimatePresence>
+        {showEditFamilyModal && (
+          <EditFamilyModal
+            family={currentFamily}
+            onClose={() => setShowEditFamilyModal(false)}
+            onFamilyUpdated={handleFamilyRenamed}
           />
         )}
       </AnimatePresence>
@@ -526,10 +653,11 @@ export default function FamilyDashboard() {
   const { families, loading, refreshFamilies, deleteFamily } = useFamilies();
   const [selectedFamily, setSelectedFamily] = useState(null);
   const [showCreateFamilyModal, setShowCreateFamilyModal] = useState(false);
+  const [editingFamily, setEditingFamily] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleDeleteFamily = async (family, e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     if (!confirm(`Delete "${family.name}"? Members inside will become unassigned users.`)) return;
 
     try {
@@ -539,6 +667,13 @@ export default function FamilyDashboard() {
       }
     } catch (err) {
       alert('Failed to delete family: ' + err.message);
+    }
+  };
+
+  const handleFamilyUpdated = (updated) => {
+    refreshFamilies();
+    if (selectedFamily?.id === updated.id) {
+      setSelectedFamily(updated);
     }
   };
 
@@ -552,6 +687,8 @@ export default function FamilyDashboard() {
           <FamilyDetail
             family={selectedFamily}
             onBack={() => setSelectedFamily(null)}
+            onFamilyUpdated={handleFamilyUpdated}
+            onDeleteFamily={handleDeleteFamily}
           />
         ) : (
           <>
@@ -614,8 +751,18 @@ export default function FamilyDashboard() {
 
                     <div className="flex items-center gap-2">
                       <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          setEditingFamily(f);
+                        }}
+                        className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center border border-blue-200 transition-colors"
+                        title="Edit Family Name"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button
                         onClick={e => handleDeleteFamily(f, e)}
-                        className="w-9 h-9 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center transition-colors"
+                        className="w-9 h-9 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center border border-red-200 transition-colors"
                         title="Delete Family"
                       >
                         <Trash2 size={16} />
@@ -636,6 +783,17 @@ export default function FamilyDashboard() {
           <CreateFamilyModal
             onClose={() => setShowCreateFamilyModal(false)}
             onFamilyCreated={refreshFamilies}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Edit Family Modal */}
+      <AnimatePresence>
+        {editingFamily && (
+          <EditFamilyModal
+            family={editingFamily}
+            onClose={() => setEditingFamily(null)}
+            onFamilyUpdated={handleFamilyUpdated}
           />
         )}
       </AnimatePresence>

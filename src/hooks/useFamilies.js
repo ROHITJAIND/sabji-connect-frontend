@@ -31,6 +31,17 @@ export function useFamilies() {
     }
   };
 
+  const updateFamily = async (id, name) => {
+    try {
+      const res = await familiesApi.update(id, name);
+      await fetchFamilies();
+      return res;
+    } catch (e) {
+      console.error('Error updating family:', e);
+      throw e;
+    }
+  };
+
   const deleteFamily = async (id) => {
     try {
       await familiesApi.delete(id);
@@ -41,5 +52,5 @@ export function useFamilies() {
     }
   };
 
-  return { families, loading, createFamily, deleteFamily, refreshFamilies: fetchFamilies };
+  return { families, loading, createFamily, updateFamily, deleteFamily, refreshFamilies: fetchFamilies };
 }
