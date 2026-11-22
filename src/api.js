@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Sabji Connect API Client.
  * Connects the React frontend to the FastAPI + MongoDB backend.
  */
@@ -125,13 +125,9 @@ export const familiesApi = {
     body: JSON.stringify({ name }),
   }),
   getMembers: (familyId) => request(`/families/${familyId}/members`),
-  addMember: (familyId, userId, role) => request(`/families/${familyId}/members`, {
+  addMember: (familyId, userId) => request(`/families/${familyId}/members`, {
     method: 'POST',
-    body: JSON.stringify({ user_id: userId, role }),
-  }),
-  updateMemberRole: (familyId, userId, role) => request(`/families/${familyId}/members/${userId}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ role }),
+    body: JSON.stringify({ user_id: userId }),
   }),
   removeMember: (familyId, userId) => request(`/families/${familyId}/members/${userId}`, {
     method: 'DELETE',

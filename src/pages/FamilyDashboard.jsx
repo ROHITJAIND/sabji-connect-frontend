@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Navbar from '../components/layout/Navbar';
 import Sidebar from '../components/layout/Sidebar';
 import MemberOrdersOverlay from '../components/MemberOrdersOverlay';
@@ -31,7 +31,7 @@ const ROLE_COLORS = {
 };
 
 /* ─── Member Card in Family Detail ─── */
-function MemberCard({ member, onEditRole, onRemove, onViewOrders }) {
+function MemberCard({ member, onRemove, onViewOrders }) {
   const colors = ROLE_COLORS[member.role] || ROLE_COLORS.Hukum;
   const RIcon = colors.icon;
   const initials = member.displayName || member.display_name
@@ -76,13 +76,6 @@ function MemberCard({ member, onEditRole, onRemove, onViewOrders }) {
           </button>
         )}
         <button
-          onClick={() => onEditRole(member)}
-          className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center border border-blue-200 transition-colors"
-          title="Change role"
-        >
-          <Edit2 size={16} />
-        </button>
-        <button
           onClick={() => onRemove(member)}
           className="w-9 h-9 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-center border border-red-200 transition-colors"
           title="Remove from family"
@@ -98,7 +91,6 @@ function MemberCard({ member, onEditRole, onRemove, onViewOrders }) {
 function AddMemberModal({ familyId, currentMemberIds, onClose, onMemberAdded }) {
   const [allUsers, setAllUsers] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState('');
-  const [selectedRole, setSelectedRole] = useState('Hukum');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -124,6 +116,7 @@ function AddMemberModal({ familyId, currentMemberIds, onClose, onMemberAdded }) 
   }, [currentMemberIds]);
 
   const eligibleUsers = allUsers.filter(u => !currentMemberIds.includes(u.id));
+  const selectedUser = allUsers.find(u => u.id === selectedUserId);
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -135,7 +128,7 @@ function AddMemberModal({ familyId, currentMemberIds, onClose, onMemberAdded }) 
     setSubmitting(true);
     setError('');
     try {
-      await familiesApi.addMember(familyId, selectedUserId, selectedRole);
+      await familiesApi.addMember(familyId, selectedUserId);
       onMemberAdded();
       onClose();
     } catch (err) {
@@ -199,25 +192,26 @@ function AddMemberModal({ familyId, currentMemberIds, onClose, onMemberAdded }) 
               >
                 {eligibleUsers.map(u => (
                   <option key={u.id} value={u.id}>
-                    {u.display_name} ({u.email.split('@')[0]}) {u.family_id ? '· [Reassign]' : '· [Unassigned]'}
+                    {u.display_name} ({u.role}) · {u.email}
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-gray-400 mt-1">Users are created in the Users section.</p>
+              <p className="text-xs text-gray-500 mt-2 font-medium">
+                💡 Roles are defined in the <strong>User Management</strong> section and apply system-wide.
+              </p>
             </div>
 
-            <div>
-              <label className="block text-sm font-bold text-gray-800 mb-1">Family Role</label>
-              <select
-                value={selectedRole}
-                onChange={e => setSelectedRole(e.target.value)}
-                className="w-full p-3 rounded-xl border-2 border-gray-900 font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
-              >
-                <option value="Hukum">Hukum (Family Member / Order Requester)</option>
-                <option value="Sethji">Sethji (Market Buyer / Shopper)</option>
-                <option value="Admin">Admin (Family Co-Admin)</option>
-              </select>
-            </div>
+            {selectedUser && (
+              <div className="p-3 bg-gray-50 border-2 border-gray-200 rounded-xl flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">User Role</p>
+                  <p className="text-sm font-bold text-gray-900">{selectedUser.display_name}</p>
+                </div>
+                <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-orange-100 text-orange-800 border border-orange-200">
+                  {selectedUser.role}
+                </span>
+              </div>
+            )}
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-sm font-semibold">
@@ -243,76 +237,6 @@ function AddMemberModal({ familyId, currentMemberIds, onClose, onMemberAdded }) 
             </div>
           </form>
         )}
-      </motion.div>
-    </motion.div>
-  );
-}
-
-/* ─── Edit Member Role Modal ─── */
-function EditRoleModal({ familyId, member, onClose, onRoleUpdated }) {
-  const [role, setRole] = useState(member.role || 'Hukum');
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      await familiesApi.updateMemberRole(familyId, member.id || member.uid, role);
-      onRoleUpdated();
-      onClose();
-    } catch (err) {
-      alert('Failed to update role: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.95, opacity: 0 }}
-        className="bg-white rounded-3xl border-4 border-gray-900 shadow-[8px_8px_0px_rgba(0,0,0,1)] p-6 max-w-sm w-full"
-        onClick={e => e.stopPropagation()}
-      >
-        <h3 className="title-font text-lg font-black text-gray-900 mb-2">Change Role</h3>
-        <p className="text-xs text-gray-500 mb-4 font-semibold">Updating role for {member.displayName || member.display_name}</p>
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <select
-            value={role}
-            onChange={e => setRole(e.target.value)}
-            className="w-full p-3 rounded-xl border-2 border-gray-900 font-semibold text-gray-900 bg-white"
-          >
-            <option value="Hukum">Hukum (Requester)</option>
-            <option value="Sethji">Sethji (Shopper)</option>
-            <option value="Admin">Admin</option>
-          </select>
-
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-3 rounded-xl font-bold text-gray-700 bg-gray-100 hover:bg-gray-200"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 btn-3d bg-orange-500 text-white py-3 rounded-xl font-bold"
-            >
-              {loading ? 'Saving...' : 'Save Role'}
-            </button>
-          </div>
-        </form>
       </motion.div>
     </motion.div>
   );
@@ -496,7 +420,6 @@ function FamilyDetail({ family, onBack, onFamilyUpdated, onDeleteFamily }) {
   const { members, loading, refreshMembers } = useFamilyMembers(currentFamily.id);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showEditFamilyModal, setShowEditFamilyModal] = useState(false);
-  const [editingRoleMember, setEditingRoleMember] = useState(null);
   const [viewingOrdersFor, setViewingOrdersFor] = useState(null);
 
   useEffect(() => {
@@ -594,7 +517,6 @@ function FamilyDetail({ family, onBack, onFamilyUpdated, onDeleteFamily }) {
             <MemberCard
               key={member.id || member.uid}
               member={member}
-              onEditRole={m => setEditingRoleMember(m)}
               onRemove={handleRemoveMember}
               onViewOrders={m => setViewingOrdersFor(m)}
             />
@@ -610,18 +532,6 @@ function FamilyDetail({ family, onBack, onFamilyUpdated, onDeleteFamily }) {
             currentMemberIds={currentMemberIds}
             onClose={() => setShowAddMemberModal(false)}
             onMemberAdded={refreshMembers}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Edit Role Modal */}
-      <AnimatePresence>
-        {editingRoleMember && (
-          <EditRoleModal
-            familyId={currentFamily.id}
-            member={editingRoleMember}
-            onClose={() => setEditingRoleMember(null)}
-            onRoleUpdated={refreshMembers}
           />
         )}
       </AnimatePresence>
