@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import { requestedItemsApi } from '../api';
 
@@ -361,24 +361,19 @@ export default function HukumDashboard() {
   const isPast = selectedKey < todayKey;
   const canEdit = !isPast; // can only edit today and future
 
-  // Listen for real-time pending requested items so they disappear automatically when approved
+  // Fetch pending requested items for this family
   useEffect(() => {
     if (!userFamilyId) return;
-    const q = query(
-      collection(db, 'requestedItems'),
-      where('familyId', '==', userFamilyId),
-      where('status', '==', 'pending')
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      const items = snap.docs.map(doc => ({
-        id: doc.data().customId || doc.id,
-        name: doc.data().name,
-        category: 'Others',
-        isCustom: true
-      }));
-      setSessionCustomItems(items);
-    });
-    return unsub;
+    requestedItemsApi.list()
+      .then(items => {
+        setSessionCustomItems((items || []).map(item => ({
+          id: item.id,
+          name: item.name,
+          category: 'Others',
+          isCustom: true
+        })));
+      })
+      .catch(err => console.error('Error fetching requested items:', err));
   }, [userFamilyId]);
 
   // Get ALL orders for the selected date
@@ -604,17 +599,17 @@ export default function HukumDashboard() {
       }];
       await updateOrder(draft.id, { items: newItems });
 
-      // 2. Submit to requestedItems collection
-      await addDoc(collection(db, 'requestedItems'), {
-        name: customItemName.trim(),
-        customId: customId,
-        requestedBy: userDisplayName || currentUser?.email || 'Unknown',
-        familyId: userFamilyId || 'default_family',
-        status: 'pending',
-        createdAt: serverTimestamp()
-      });
-
-      // The onSnapshot listener will automatically pick this up and add it to sessionCustomItems
+      // 2. Submit to requestedItems API
+      const reqRes = await requestedItemsApi.request(customItemName.trim());
+      setSessionCustomItems(prev => [
+        ...prev,
+        {
+          id: reqRes.id || customId,
+          name: customItemName.trim(),
+          category: 'Others',
+          isCustom: true,
+        }
+      ]);
 
       setCustomModalOpen(false);
       setCustomItemName('');

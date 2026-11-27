@@ -27,7 +27,7 @@ export default function Sidebar({ isOpen, onClose, onSelectMember }) {
   }, [isOpen]);
 
   const photoURL = currentUser?.avatar_url || currentUser?.avatarUrl || '';
-  const displayName = userDisplayName || currentUser?.display_name || currentUser?.displayName || currentUser?.email?.split('@')[0] || '';
+  const displayName = userDisplayName || currentUser?.display_name || currentUser?.displayName || currentUser?.username || currentUser?.email?.split('@')[0] || '';
 
   const handleLogout = async () => {
     try {
@@ -213,7 +213,7 @@ export default function Sidebar({ isOpen, onClose, onSelectMember }) {
                     <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Family Members</span>
                   </div>
                   {otherMembers.map(member => {
-                    const mName = member.displayName || member.display_name || member.email?.split('@')[0] || 'Member';
+                    const mName = member.displayName || member.display_name || member.username || member.email?.split('@')[0] || 'Member';
                     const memberInitials = mName
                       ? mName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
                       : (member.role ? member.role[0] : '?');

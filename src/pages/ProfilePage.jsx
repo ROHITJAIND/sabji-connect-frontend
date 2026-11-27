@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -164,8 +164,8 @@ export default function ProfilePage() {
           
           <div className="flex flex-col gap-4">
             <div className="flex justify-between items-center">
-              <span className="font-bold text-gray-500 text-sm">Email</span>
-              <span className="font-extrabold text-gray-900">{currentUser.email}</span>
+              <span className="font-bold text-gray-500 text-sm">Username</span>
+              <span className="font-extrabold text-gray-900">@{currentUser.username || currentUser.email}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="font-bold text-gray-500 text-sm">Role</span>

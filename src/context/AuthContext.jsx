@@ -31,9 +31,7 @@ export function AuthProvider({ children }) {
       setCurrentUser({ uid: data.id, ...data });
       setUserRole(data.role);
 
-      const fids = data.family_ids && data.family_ids.length > 0
-        ? data.family_ids
-        : (data.family_id ? [data.family_id] : []);
+      const fids = data.family_ids || [];
       setUserFamilyIds(fids);
 
       // Determine active family id
@@ -74,7 +72,7 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const switchFamily = useCallback(async (familyId) => {
+  const switchFamily = useCallback((familyId) => {
     const targetId = familyId || null;
     if (targetId) {
       localStorage.setItem('sabji_active_family_id', targetId);
@@ -83,11 +81,6 @@ export function AuthProvider({ children }) {
     }
     setActiveFamilyId(targetId);
     setUserFamilyId(targetId);
-    try {
-      await authApi.updateMe({ family_id: targetId || '' });
-    } catch (err) {
-      console.warn('Could not sync active family to server:', err);
-    }
   }, []);
 
   useEffect(() => {
@@ -114,8 +107,8 @@ export function AuthProvider({ children }) {
     };
   }, [currentUser, activeFamilyId]);
 
-  const login = async (email, password) => {
-    await authApi.login(email, password);
+  const login = async (username, password) => {
+    await authApi.login(username, password);
     await fetchProfile();
   };
 

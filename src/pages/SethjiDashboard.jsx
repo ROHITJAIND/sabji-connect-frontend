@@ -54,24 +54,19 @@ export default function SethjiDashboard() {
   const [sessionCustomItems, setSessionCustomItems] = useState([]);
   const [isSubmittingCustom, setIsSubmittingCustom] = useState(false);
 
-  // Listen for real-time pending requested items so they disappear automatically when approved
+  // Fetch pending requested items so they appear in catalog
   useEffect(() => {
     if (!userFamilyId) return;
-    const q = query(
-      collection(db, 'requestedItems'),
-      where('familyId', '==', userFamilyId),
-      where('status', '==', 'pending')
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      const items = snap.docs.map(doc => ({
-        id: doc.data().customId || doc.id,
-        name: doc.data().name,
-        category: 'Others',
-        isCustom: true
-      }));
-      setSessionCustomItems(items);
-    });
-    return unsub;
+    requestedItemsApi.list()
+      .then(items => {
+        setSessionCustomItems((items || []).map(item => ({
+          id: item.id,
+          name: item.name,
+          category: 'Others',
+          isCustom: true
+        })));
+      })
+      .catch(err => console.error('Error fetching requested items:', err));
   }, [userFamilyId]);
 
   const todayKey = getDateKey(new Date());
@@ -242,16 +237,7 @@ export default function SethjiDashboard() {
       if (onSpotOrder) {
         updateOrder(onSpotOrder.id, { items: [...onSpotOrder.items, newItem] });
       } else {
-        await addDoc(collection(db, 'orders'), {
-          familyId: userFamilyId,
-          createdBy: 'on_spot',
-          createdByName: 'On Spot',
-          status: 'Fulfilling',
-          orderDate: selectedKey,
-          items: [newItem],
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
+        await ordersApi.create(selectedKey);
       }
     } else if (hukumId === 'all_hukums') {
       allActiveForDate.forEach(targetOrder => {
@@ -276,23 +262,14 @@ export default function SethjiDashboard() {
     setIsSubmittingCustom(true);
     try {
       const customId = 'custom_' + Date.now();
-      await addDoc(collection(db, 'requestedItems'), {
-        name: searchQuery.trim(),
-        customId: customId,
-        requestedBy: userDisplayName || currentUser?.email || 'Sethji',
-        familyId: userFamilyId || 'default_family',
-        status: 'pending', isSethjiAdded: false,
-        createdAt: serverTimestamp()
-      });
-
+      const reqRes = await requestedItemsApi.request(searchQuery.trim());
       const customItem = {
-        id: customId,
+        id: reqRes.id || customId,
         name: searchQuery.trim(),
         category: 'Others',
         isCustom: true
       };
-      // The onSnapshot listener will pick this up for the catalog grid
-      
+      setSessionCustomItems(prev => [...prev, customItem]);
       openDetailsForm(customItem);
     } catch (err) {
       console.error("Error adding custom item", err);

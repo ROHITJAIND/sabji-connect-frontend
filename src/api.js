@@ -73,10 +73,10 @@ export async function request(endpoint, options = {}) {
 
 // ── Auth Endpoints ──────────────────────────────────────────
 export const authApi = {
-  login: async (email, password) => {
+  login: async (username, password) => {
     const data = await request('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ username, password }),
     });
     tokens.set(data.access_token, data.refresh_token);
     return data;
@@ -155,9 +155,12 @@ export function connectWebSocket(familyId, onMessage) {
 
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = window.location.host;
-  const wsUrl = `${protocol}//${host}/ws?token=${token}&family_id=${familyId || ''}`;
+  const wsUrl = `${protocol}//${host}/api/ws?token=${token}&family_id=${familyId || ''}`;
 
   let ws;
+  let isClosedManually = false;
+  let reconnectTimer = null;
+
   try {
     ws = new WebSocket(wsUrl);
   } catch (err) {
@@ -172,12 +175,25 @@ export function connectWebSocket(familyId, onMessage) {
     } catch {}
   };
 
-  ws.onclose = () => {
-    // Reconnect attempt after 5 seconds
-    setTimeout(() => {
-      if (tokens.getAccess()) connectWebSocket(familyId, onMessage);
+  ws.onclose = (event) => {
+    if (isClosedManually || event.code === 1000 || event.code === 4001 || event.code === 4003) {
+      return;
+    }
+    // Reconnect attempt after 5 seconds if not closed manually
+    reconnectTimer = setTimeout(() => {
+      if (!isClosedManually && tokens.getAccess()) {
+        connectWebSocket(familyId, onMessage);
+      }
     }, 5000);
   };
 
-  return ws;
+  return {
+    close: () => {
+      isClosedManually = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        ws.close(1000, 'Unmounted');
+      }
+    },
+  };
 }

@@ -46,13 +46,11 @@ function CreateUserModal({ onClose, onUserCreated }) {
 
     setLoading(true);
     try {
-      const syntheticEmail = cleanUser.includes('@') ? cleanUser : `${cleanUser}@sabjiconnect.com`;
       await authApi.adminCreateUser({
-        email: syntheticEmail,
+        username: cleanUser,
         password: password,
         display_name: cleanName || cleanUser,
         role: role,
-        family_id: null,
       });
 
       onUserCreated();
@@ -260,7 +258,7 @@ function EditUserModal({ user, onClose, onUserUpdated }) {
             </div>
             <div>
               <h2 className="title-font text-xl font-black text-gray-900">Edit User</h2>
-              <p className="text-xs text-gray-500 font-semibold">{user.email}</p>
+              <p className="text-xs text-gray-500 font-semibold">@{user.username || user.email}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100 text-gray-500">
@@ -502,8 +500,8 @@ export default function UsersPage() {
                     </div>
 
                     <div className="min-w-0">
-                      <h3 className="font-bold text-gray-900 truncate">{user.display_name || 'Unnamed User'}</h3>
-                      <p className="text-xs text-gray-500 font-semibold truncate">{user.email}</p>
+                      <h3 className="font-bold text-gray-900 truncate">{user.display_name || user.username || 'Unnamed User'}</h3>
+                      <p className="text-xs text-gray-500 font-semibold truncate">@{user.username || user.email}</p>
 
                       <div className="flex flex-wrap items-center gap-1.5 mt-1">
                         <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md ${roleConfig.bg} ${roleConfig.text}`}>

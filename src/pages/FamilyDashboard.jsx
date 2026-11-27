@@ -54,8 +54,8 @@ function MemberCard({ member, onRemove, onViewOrders }) {
         </div>
 
         <div className="min-w-0">
-          <h3 className="font-bold text-gray-900 truncate">{member.displayName || member.display_name || 'Unnamed'}</h3>
-          <p className="text-xs text-gray-500 font-semibold truncate">{member.email}</p>
+          <h3 className="font-bold text-gray-900 truncate">{member.displayName || member.display_name || member.username || 'Unnamed'}</h3>
+          <p className="text-xs text-gray-500 font-semibold truncate">@{member.username || member.email}</p>
           <div className="flex items-center gap-1.5 mt-1">
             <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md ${colors.bg} ${colors.text}`}>
               <RIcon size={11} />
@@ -432,7 +432,7 @@ function FamilyDetail({ family, onBack, onFamilyUpdated, onDeleteFamily }) {
   }, [family]);
 
   const handleRemoveMember = async (member) => {
-    const memberName = member.displayName || member.display_name || member.email;
+    const memberName = member.displayName || member.display_name || member.username || member.email;
     if (!confirm(`Remove ${memberName} from ${currentFamily.name}? They will become an unassigned user.`)) return;
 
     try {

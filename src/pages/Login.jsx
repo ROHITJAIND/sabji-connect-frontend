@@ -13,19 +13,15 @@ export default function Login() {
     e.preventDefault();
     try {
       setError('');
-      
-      let finalEmail = username.trim();
-      // If it doesn't contain an @ symbol, it's a username.
-      if (!finalEmail.includes('@')) {
-        // Remove all spaces and convert to lowercase
-        const cleanUsername = finalEmail.replace(/\s+/g, '').toLowerCase();
-        finalEmail = `${cleanUsername}@sabjiconnect.com`;
+      const cleanUsername = username.trim().toLowerCase();
+      if (!cleanUsername) {
+        setError('Please enter your username');
+        return;
       }
-
-      await login(finalEmail, password);
+      await login(cleanUsername, password);
       navigate('/');
     } catch (err) {
-      setError('Failed to log in. Please check your username and password.');
+      setError('Invalid username or password. Please try again.');
     }
   };
 
