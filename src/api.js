@@ -112,7 +112,10 @@ export const catalogApi = {
 export const ordersApi = {
   list: () => request('/orders/'),
   get: (id) => request(`/orders/${id}`),
-  create: (orderDate) => request('/orders/', { method: 'POST', body: JSON.stringify({ order_date: orderDate }) }),
+  create: (data) => request('/orders/', {
+    method: 'POST',
+    body: JSON.stringify(typeof data === 'string' ? { order_date: data } : data),
+  }),
   update: (id, data) => request(`/orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: (id) => request(`/orders/${id}`, { method: 'DELETE' }),
 };

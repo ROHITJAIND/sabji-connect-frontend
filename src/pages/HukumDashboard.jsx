@@ -25,7 +25,7 @@ function getCategoryColor(category) {
   }
 }
 
-/* â”€â”€â”€ Floating item that flies to cart â”€â”€â”€ */
+/* ─── Floating item that flies to cart ─── */
 function FlyingItem({ item, startRect, cartRect, onDone }) {
   if (!startRect || !cartRect) return null;
   const dx = cartRect.x + cartRect.width / 2 - (startRect.x + startRect.width / 2);
@@ -50,7 +50,7 @@ function FlyingItem({ item, startRect, cartRect, onDone }) {
   );
 }
 
-/* â”€â”€â”€ Single catalog tile â”€â”€â”€ */
+/* ─── Single catalog tile ─── */
 function CatalogTile({ item, isInCart, onToggle }) {
   const colors = getCategoryColor(item.category);
   const emoji = getEmojiForName(item.name);
@@ -76,7 +76,7 @@ function CatalogTile({ item, isInCart, onToggle }) {
 
       {isInCart && (
         <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-green-500 flex items-center justify-center z-10 border-2 border-white shadow-md">
-          <span className="text-white text-xs font-bold">âœ“</span>
+          <span className="text-white text-xs font-bold">✓</span>
         </div>
       )}
 
@@ -96,7 +96,7 @@ function CatalogTile({ item, isInCart, onToggle }) {
   );
 }
 
-/* â”€â”€â”€ Cart drawer item row â”€â”€â”€ */
+/* ─── Cart drawer item row ─── */
 function CartItemRow({ item, onQtyChange, onUnitChange, onRemove }) {
   const emoji = getEmojiForName(item.name);
   return (
@@ -151,7 +151,7 @@ function CartItemRow({ item, onQtyChange, onUnitChange, onRemove }) {
   );
 }
 
-/* â”€â”€â”€ Date helpers â”€â”€â”€ */
+/* ─── Date helpers ─── */
 function getDateKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
@@ -173,7 +173,7 @@ function formatDateSubtitle(date) {
   return date.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-/* â”€â”€â”€ Order Summary Card (read-only) â”€â”€â”€ */
+/* ─── Order Summary Card (read-only) ─── */
 function OrderSummaryCard({ order, index, onEdit, onDelete }) {
   const isArchived = order.status === 'Archived';
   const isPublished = order.status === 'Published';
@@ -191,12 +191,12 @@ function OrderSummaryCard({ order, index, onEdit, onDelete }) {
         isArchived ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'
       }`}>
         <div className="flex items-center gap-2">
-          <span className="text-lg">{isArchived ? 'âœ…' : 'ðŸ“‹'}</span>
+          <span className="text-lg">{isArchived ? '\u2705' : '\uD83D\uDCCB'}</span>
           <h3 className="font-bold text-gray-700 text-sm">List #{index + 1}</h3>
         </div>
         <div className="flex items-center gap-2">
           {isArchived && order.totalExpense > 0 && (
-            <span className="text-sm font-bold text-emerald-600">â‚¹{order.totalExpense}</span>
+            <span className="text-sm font-bold text-emerald-600">{'\u20B9'}{order.totalExpense}</span>
           )}
           <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide ${
             isArchived ? 'bg-gray-200 text-gray-500' :
@@ -234,8 +234,8 @@ function OrderSummaryCard({ order, index, onEdit, onDelete }) {
                 <span className="font-semibold text-gray-800 text-sm">{item.name}</span>
               </div>
               <span className="text-sm text-gray-500 font-semibold">{item.qty} {item.unit || 'pcs'}</span>
-              {item.status === 'found' && <span className="text-green-500">âœ…</span>}
-              {item.status === 'not_found' && <span className="text-red-500">âŒ</span>}
+              {item.status === 'found' && <span className="text-green-500">{'\u2705'}</span>}
+              {item.status === 'not_found' && <span className="text-red-500">{'\u274C'}</span>}
             </div>
           );
         })}
@@ -244,7 +244,7 @@ function OrderSummaryCard({ order, index, onEdit, onDelete }) {
   );
 }
 
-/* â”€â”€â”€ Main Dashboard â”€â”€â”€ */
+/* ─── Main Dashboard ─── */
 export default function HukumDashboard() {
   const { catalog } = useCatalog();
   const { orders, createDraft, updateOrder, deleteOrder } = useOrders();
@@ -271,7 +271,14 @@ export default function HukumDashboard() {
     }
   }, []);
 
-  const canDeleteList = userRole === 'Hukum' || userRole === 'Admin';
+  const currentUserId = currentUser?.id || currentUser?.uid;
+  const canDeleteOrder = (order) => {
+    if (userRole === 'Admin') return true;
+    if (userRole === 'Hukum') {
+      return !order?.createdBy || String(order.createdBy) === String(currentUserId);
+    }
+    return false;
+  };
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState(null);
 
@@ -283,7 +290,7 @@ export default function HukumDashboard() {
   const executeDelete = async () => {
     if (orderToDelete) {
       await deleteOrder(orderToDelete.id);
-      showToast('ðŸ—‘ï¸ List deleted successfully!');
+      showToast('🗑️ï¸ List deleted successfully!');
       setDeleteModalOpen(false);
       setOrderToDelete(null);
     }
@@ -294,6 +301,8 @@ export default function HukumDashboard() {
   const [isSubmittingCustom, setIsSubmittingCustom] = useState(false);
   const [sessionCustomItems, setSessionCustomItems] = useState([]);
   const [isCartShaking, setIsCartShaking] = useState(false);
+  const [cartItems, setCartItems] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   
   useEffect(() => {
@@ -307,7 +316,7 @@ export default function HukumDashboard() {
           knownCompletedOrdersRef.current.add(myOrder.id);
           if (Date.now() - Number(myOrder.batchId) < 30000) {
             if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification('List Completed! ðŸŽ‰', {
+              new Notification('List Completed! 🎉', {
                 body: `Sethji has finalized and completed your list.`,
                 icon: '/icon-192x192.png'
               });
@@ -342,7 +351,7 @@ export default function HukumDashboard() {
               knownNotFoundItemsRef.current.add(notFoundKey);
               if (Date.now() - item.statusUpdatedAt < 30000) {
                 if ('Notification' in window && Notification.permission === 'granted') {
-                  new Notification('Item Unavailable âŒ', {
+                  new Notification('Item Unavailable \u274C', {
                     body: `Sethji marked "${item.name}" as not available.`,
                     icon: item.imageURL || '/icon-192x192.png'
                   });
@@ -376,8 +385,11 @@ export default function HukumDashboard() {
       .catch(err => console.error('Error fetching requested items:', err));
   }, [userFamilyId]);
 
-  // Get ALL orders for the selected date
+  // Get ALL orders for the selected date (filtered to own orders for main dashboard)
   const ordersForDate = orders.filter(o => {
+    const isOwner = !o.createdBy || String(o.createdBy) === String(currentUser?.id) || String(o.createdBy) === String(currentUser?.uid);
+    if (!isOwner) return false;
+
     if (o.orderDate) return o.orderDate === selectedKey;
     if (o.createdAt) {
       const d = o.createdAt.toDate ? o.createdAt.toDate() : new Date(o.createdAt);
@@ -395,11 +407,8 @@ export default function HukumDashboard() {
   // Published/Fulfilling orders the user has sent but Sethji hasn't finalized yet
   const sentOrders = nonArchivedOrders.filter(o => o.status === 'Published' || o.status === 'Fulfilling');
 
-  // The order we're editing (either a selected Published order, or the draft)
-  const editableOrder = editingOrderId
-    ? nonArchivedOrders.find(o => o.id === editingOrderId)
-    : draftOrder;
-  const cartCount = editableOrder?.items?.length || 0;
+  // Purely local cart count
+  const cartCount = cartItems.length;
 
   // Shake cart every 3 seconds if items exist to remind user
   useEffect(() => {
@@ -433,99 +442,98 @@ export default function HukumDashboard() {
 
     if (isPast) {
       setShowCatalog(false);
-    } else if (draftOrder && draftOrder.items?.length > 0) {
+    } else if (cartItems.length > 0) {
       setShowCatalog(true);
     } else if (sentOrders.length > 0 || archivedOrders.length > 0) {
       setShowCatalog(false);
     } else {
       setShowCatalog(false);
     }
-  }, [selectedKey, isPast, isToday, draftOrder, draftOrder?.items?.length, sentOrders.length, archivedOrders.length]);
+  }, [selectedKey, isPast, isToday, cartItems.length, sentOrders.length, archivedOrders.length]);
 
-  // Reset the manual-open flag when date changes
+  // Reset the manual-open flag and cart when date changes
   useEffect(() => {
     userOpenedCatalogRef.current = false;
+    setCartItems([]);
+    setEditingOrderId(null);
   }, [selectedKey]);
 
-  const handleToggleCart = useCallback(async (catalogItem, e) => {
-    // Capture tile position BEFORE any async work (React recycles synthetic events)
+  // Purely local cart toggle — NO database writes on item click!
+  const handleToggleCart = useCallback((catalogItem, e) => {
     const tileRect = e.currentTarget?.getBoundingClientRect();
 
-    let draft = editableOrder;
-    if (!draft) {
-      const docRef = await createDraft(selectedKey);
-      if (!docRef) return;
-      draft = { id: docRef.id, items: [] };
-    }
+    setCartItems(prev => {
+      const exists = prev.some(i => i.catalogId === catalogItem.id);
+      if (exists) {
+        return prev.filter(i => i.catalogId !== catalogItem.id);
+      }
 
-    const existingItem = draft.items.find(i => i.catalogId === catalogItem.id);
-    let newItems = [...draft.items];
-
-    if (existingItem) {
-      newItems = newItems.filter(i => i.catalogId !== catalogItem.id);
-    } else {
       const cartRect = cartBtnRef.current?.getBoundingClientRect();
       if (cartRect && tileRect) {
         const id = Date.now();
-        setFlyingEmojis(prev => [...prev, { id, item: catalogItem, startRect: tileRect, cartRect }]);
+        setFlyingEmojis(f => [...f, { id, item: catalogItem, startRect: tileRect, cartRect }]);
       }
-      newItems.push({
-        catalogId: catalogItem.id,
-        name: catalogItem.name,
-        imageURL: catalogItem.imageURL || null,
-        qty: null,
-        allowedUnits: catalogItem.allowedUnits || ['pieces'],
-        unit: 'Not Defined',
-        status: 'pending',
-      });
       setIsCartShaking(true);
       setTimeout(() => setIsCartShaking(false), 500);
-    }
 
-    updateOrder(draft.id, { items: newItems });
-  }, [editableOrder, selectedKey, createDraft, updateOrder]);
+      const defaultUnit = (catalogItem.allowedUnits && catalogItem.allowedUnits.length > 0)
+        ? 'Not Defined'
+        : 'pieces';
 
+      return [
+        ...prev,
+        {
+          catalogId: catalogItem.id,
+          name: catalogItem.name,
+          imageURL: catalogItem.imageURL || catalogItem.imageUrl || catalogItem.image_url || null,
+          qty: null,
+          allowedUnits: catalogItem.allowedUnits || ['pieces'],
+          unit: defaultUnit,
+          status: 'pending',
+        }
+      ];
+    });
+  }, []);
+
+  // Purely local quantity adjustment — NO database writes!
   const updateItemQty = (catalogId, delta) => {
-    if (!editableOrder) return;
-    let newItems = [...editableOrder.items];
-    const idx = newItems.findIndex(i => i.catalogId === catalogId);
-    if (idx > -1) {
-      const actualUnit = newItems[idx].unit === 'Not Defined' ? (newItems[idx].allowedUnits?.[0] || 'pieces') : newItems[idx].unit;
-      let step = 1;
-      if (actualUnit === 'grams' || actualUnit === 'ml') step = 50; 
-      else if (actualUnit === 'kg' || actualUnit === 'liters') step = 0.5; 
-      
-      let currentQty = newItems[idx].qty === null ? 0 : newItems[idx].qty;
-      const newQty = Math.max(0, currentQty + (delta > 0 ? step : -step));
-      
-      newItems[idx] = { 
-        ...newItems[idx], 
-        qty: newQty === 0 ? null : Number(newQty.toFixed(2)),
-        unit: newItems[idx].unit === 'Not Defined' && newQty > 0 ? actualUnit : newItems[idx].unit
-      };
-      
-      updateOrder(editableOrder.id, { items: newItems });
-    }
+    setCartItems(prev => {
+      const newItems = [...prev];
+      const idx = newItems.findIndex(i => i.catalogId === catalogId);
+      if (idx > -1) {
+        const actualUnit = newItems[idx].unit === 'Not Defined' ? (newItems[idx].allowedUnits?.[0] || 'pieces') : newItems[idx].unit;
+        let step = 1;
+        if (actualUnit === 'grams' || actualUnit === 'ml') step = 50; 
+        else if (actualUnit === 'kg' || actualUnit === 'liters') step = 0.5; 
+        
+        let currentQty = newItems[idx].qty === null ? 0 : newItems[idx].qty;
+        const newQty = Math.max(0, currentQty + (delta > 0 ? step : -step));
+        
+        newItems[idx] = { 
+          ...newItems[idx], 
+          qty: newQty === 0 ? null : Number(newQty.toFixed(2)),
+          unit: newItems[idx].unit === 'Not Defined' && newQty > 0 ? actualUnit : newItems[idx].unit
+        };
+      }
+      return newItems;
+    });
   };
 
+  // Purely local unit adjustment — NO database writes!
   const updateItemUnit = (catalogId, unit) => {
-    if (!editableOrder) return;
-    
-    // Determine default qty based on new unit
     let newQty = 1;
     if (unit === 'grams' || unit === 'ml') newQty = 250;
     else if (unit === 'kg') newQty = 0.5;
     else if (unit === 'Not Defined') newQty = null;
 
-    const newItems = editableOrder.items.map(i =>
+    setCartItems(prev => prev.map(i =>
       i.catalogId === catalogId ? { ...i, unit, qty: newQty } : i
-    );
-    updateOrder(editableOrder.id, { items: newItems });
+    ));
   };
 
+  // Purely local remove item — NO database writes!
   const removeItem = (catalogId) => {
-    if (!editableOrder) return;
-    updateOrder(editableOrder.id, { items: editableOrder.items.filter(i => i.catalogId !== catalogId) });
+    setCartItems(prev => prev.filter(i => i.catalogId !== catalogId));
   };
 
   const showToast = (msg) => {
@@ -545,29 +553,57 @@ export default function HukumDashboard() {
     }, 250);
   };
 
-  const publishCart = () => {
-    if (editableOrder && editableOrder.items.length > 0) {
-      const isUpdate = editableOrder.status === 'Published' || editableOrder.status === 'Fulfilling';
-      updateOrder(editableOrder.id, { 
-        status: editableOrder.status === 'Draft' ? 'Published' : editableOrder.status,
-        publishTrigger: new Date().toISOString()
-      });
+  // ONLY write to the database when Send to Sethji is clicked!
+  const publishCart = async () => {
+    if (cartItems.length === 0 || isSubmitting) return;
+
+    setIsSubmitting(true);
+    try {
+      const cleanItems = cartItems.map(i => ({
+        catalog_item_id: i.catalog_item_id || i.catalogId,
+        name: i.name,
+        qty: i.qty,
+        unit: i.unit || 'pieces',
+        status: i.status || 'pending',
+      }));
+
+      if (editingOrderId) {
+        // Updating an existing list in the database
+        await updateOrder(editingOrderId, {
+          items: cleanItems,
+          status: 'Published',
+          publishTrigger: new Date().toISOString()
+        });
+        showToast('\u2705 List updated successfully!');
+      } else {
+        // Creating the new order record in the database only now
+        await createDraft({
+          order_date: selectedKey,
+          items: cleanItems,
+          status: 'Published',
+          publishTrigger: new Date().toISOString()
+        });
+        fireConfetti();
+        showToast('🎉 List sent to Sethji!');
+      }
+
+      setCartItems([]);
       setCartOpen(false);
       setShowCatalog(false);
       setEditingOrderId(null);
       userOpenedCatalogRef.current = false;
-      if (isUpdate) {
-        showToast('âœ… List updated successfully!');
-      } else {
-        fireConfetti();
-        showToast('ðŸŽ‰ List sent to Sethji!');
-      }
+    } catch (err) {
+      console.error('Error sending order to Sethji:', err);
+      showToast('\u274C Failed to send list to Sethji');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // Create a NEW list for this day (when previous lists are archived)
-  const createNewList = async () => {
+  // Create a NEW list for this day
+  const createNewList = () => {
     setEditingOrderId(null);
+    setCartItems([]);
     userOpenedCatalogRef.current = true;
     setShowCatalog(true);
   };
@@ -578,33 +614,32 @@ export default function HukumDashboard() {
 
     setIsSubmittingCustom(true);
     try {
-      let draft = editableOrder;
-      if (!draft) {
-        const docRef = await createDraft(selectedKey);
-        if (!docRef) throw new Error('Failed to create draft');
-        draft = { id: docRef.id, items: [] };
-      }
-
       const customId = `custom_${Date.now()}`;
       
-      // 1. Add to local cart
-      const newItems = [...draft.items, {
+      // 1. Add to local cart state only — NO order created in DB!
+      const newItem = {
         catalogId: customId,
         name: customItemName.trim(),
         qty: 1,
-        allowedUnits: catalogItem.allowedUnits || ['pieces'],
-        unit: catalogItem.allowedUnits?.[0] || 'pieces',
+        allowedUnits: ['pieces'],
+        unit: 'pieces',
         status: 'pending',
         isCustom: true
-      }];
-      await updateOrder(draft.id, { items: newItems });
+      };
+      setCartItems(prev => [...prev, newItem]);
 
-      // 2. Submit to requestedItems API
-      const reqRes = await requestedItemsApi.request(customItemName.trim());
+      // 2. Submit to requestedItems API for catalog review (non-blocking)
+      let reqRes = null;
+      try {
+        reqRes = await requestedItemsApi.request(customItemName.trim());
+      } catch (reqErr) {
+        console.warn('Could not post to requested items catalog:', reqErr);
+      }
+
       setSessionCustomItems(prev => [
         ...prev,
         {
-          id: reqRes.id || customId,
+          id: reqRes?.id || customId,
           name: customItemName.trim(),
           category: 'Others',
           isCustom: true,
@@ -615,10 +650,10 @@ export default function HukumDashboard() {
       setCustomItemName('');
       setIsCartShaking(true);
       setTimeout(() => setIsCartShaking(false), 500);
-      showToast('âœ… Added custom item to list');
+      showToast('\u2705 Added custom item to cart');
     } catch (error) {
       console.error('Error adding custom item:', error);
-      showToast('âŒ Failed to add item');
+      showToast('\u274C Failed to add item');
     } finally {
       setIsSubmittingCustom(false);
     }
@@ -662,7 +697,7 @@ export default function HukumDashboard() {
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} onSelectMember={(m) => setViewingMember(m)} />
       {viewingMember && <MemberOrdersOverlay member={viewingMember} onClose={() => setViewingMember(null)} />}
 
-      {/* â”€â”€â”€ DATE NAVIGATION HEADER â”€â”€â”€ */}
+      {/* ─── DATE NAVIGATION HEADER ─── */}
       <div className="px-4 max-w-2xl mx-auto w-full">
         <div className="flex items-center justify-between py-4">
           <motion.button
@@ -689,7 +724,7 @@ export default function HukumDashboard() {
             </p>
             {!isToday && (
               <button className="text-xs font-bold text-green-600 mt-1 hover:underline">
-                â†© Tap to go to Today
+                ↩ Tap to go to Today
               </button>
             )}
           </motion.div>
@@ -707,9 +742,9 @@ export default function HukumDashboard() {
         </div>
       </div>
 
-      {/* â”€â”€â”€ VIEW SWITCHER â”€â”€â”€ */}
+      {/* ─── VIEW SWITCHER ─── */}
       {!showCatalog ? (
-      /* â•â•â• SUMMARY VIEW â•â•â• */
+      /* ═══ SUMMARY VIEW ═══ */
       <div className="flex-1 overflow-y-auto pb-28 px-4 max-w-2xl mx-auto w-full">
 
         {/* Day total banner */}
@@ -720,22 +755,23 @@ export default function HukumDashboard() {
             className="bg-gradient-to-r from-emerald-500 to-green-600 rounded-2xl px-5 py-4 mb-4 text-center shadow-lg"
           >
             <p className="text-emerald-100 text-xs font-bold uppercase tracking-wider">Today's Total Spend</p>
-            <p className="text-white text-3xl font-black mt-1">â‚¹{dayTotal}</p>
+            <p className="text-white text-3xl font-black mt-1">{'\u20B9'}{dayTotal}</p>
           </motion.div>
         )}
 
-        {/* Sent orders (Published/Fulfilling) â€” waiting for Sethji */}
+        {/* Sent orders (Published/Fulfilling)  --  waiting for Sethji */}
         {sentOrders.map((order, idx) => (
           <div key={order.id} className="mb-4">
             <OrderSummaryCard
               order={order}
               index={idx}
-              onEdit={canEdit && (order.status === 'Published' || order.status === 'Fulfilling') ? () => {
+              onEdit={canEdit && (!order.createdBy || String(order.createdBy) === String(currentUserId)) && (order.status === 'Published' || order.status === 'Fulfilling') ? () => {
                 setEditingOrderId(order.id);
+                setCartItems(order.items ? JSON.parse(JSON.stringify(order.items)) : []);
                 userOpenedCatalogRef.current = true;
                 setShowCatalog(true);
               } : null}
-              onDelete={canDeleteList ? () => confirmDeleteOrder(order) : null}
+              onDelete={canDeleteOrder(order) ? () => confirmDeleteOrder(order) : null}
             />
           </div>
         ))}
@@ -743,7 +779,7 @@ export default function HukumDashboard() {
         {/* Draft order summary */}
         {draftOrder && draftOrder.items?.length > 0 && (
           <div className="mb-4">
-            <OrderSummaryCard order={draftOrder} index={sentOrders.length} onDelete={canDeleteList ? () => confirmDeleteOrder(draftOrder) : null} />
+            <OrderSummaryCard order={draftOrder} index={sentOrders.length} onDelete={canDeleteOrder(draftOrder) ? () => confirmDeleteOrder(draftOrder) : null} />
           </div>
         )}
 
@@ -759,16 +795,16 @@ export default function HukumDashboard() {
             )}
             {archivedOrders.map((order, idx) => (
               <div key={order.id} className="mb-4">
-                <OrderSummaryCard order={order} index={idx} onDelete={canDeleteList ? () => confirmDeleteOrder(order) : null} />
+                <OrderSummaryCard order={order} index={idx} onDelete={canDeleteOrder(order) ? () => confirmDeleteOrder(order) : null} />
               </div>
             ))}
           </>
         )}
 
         {/* Empty state */}
-        {!(sentOrders.length > 0 || archivedOrders.length > 0 || (draftOrder && draftOrder.items?.length > 0)) && (
+        {!(sentOrders.length > 0 || archivedOrders.length > 0 || cartItems.length > 0) && (
           <div className="text-center py-20 text-gray-400">
-            <p className="text-5xl mb-3">{canEdit ? 'ðŸ“' : 'ðŸ“­'}</p>
+            <p className="text-5xl mb-3">{canEdit ? '\uD83D\uDCCB' : '\uD83D\uDD12'}</p>
             <p className="font-semibold text-lg">No lists for this day</p>
             {canEdit && !isPast && (
               <motion.button
@@ -787,8 +823,8 @@ export default function HukumDashboard() {
         {/* Bottom buttons */}
         {canEdit && (
           <div className="fixed bottom-6 left-4 right-4 z-40 max-w-2xl mx-auto space-y-2">
-            {/* Update existing draft */}
-            {draftOrder && draftOrder.items?.length > 0 && (
+            {/* If there are items in local cart, resume cart */}
+            {cartItems.length > 0 && (
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={() => setShowCatalog(true)}
@@ -796,11 +832,11 @@ export default function HukumDashboard() {
                   bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700
                   shadow-lg active:scale-[0.98] transition-all"
               >
-                <Pencil size={20} /> Update Cart
+                <Pencil size={20} /> View / Edit Cart ({cartItems.length} items)
               </motion.button>
             )}
-            {/* Create new list â€” shown when no draft with items exists and there are already sent/archived orders */}
-            {!(draftOrder && draftOrder.items?.length > 0) && (sentOrders.length > 0 || archivedOrders.length > 0) && (
+            {/* Create new list */}
+            {cartItems.length === 0 && (
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={createNewList}
@@ -808,24 +844,43 @@ export default function HukumDashboard() {
                   bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700
                   shadow-lg active:scale-[0.98] transition-all"
               >
-                <PlusCircle size={20} /> Create New List
+                <PlusCircle size={20} /> {sentOrders.length > 0 || archivedOrders.length > 0 ? 'Create Another List' : 'Create List'}
               </motion.button>
             )}
           </div>
         )}
       </div>
       ) : (
-      /* â•â•â• CATALOG VIEW â•â•â• */
+      /* ─── CATALOG VIEW ─── */
       <div className="flex-1 overflow-y-auto pb-28 px-4 max-w-2xl mx-auto w-full">
+        {/* Top bar with back to summary button */}
+        <div className="flex items-center justify-between pt-2 pb-1">
+          <button
+            onClick={() => setShowCatalog(false)}
+            className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-gray-700 bg-white px-3.5 py-1.5 rounded-full border border-gray-200 shadow-sm hover:bg-gray-50 transition-colors"
+          >
+            <ChevronLeft size={16} strokeWidth={2.5} /> Back to Summary
+          </button>
+          {editingOrderId ? (
+            <span className="text-xs font-bold bg-amber-100 text-amber-800 px-3 py-1 rounded-full">
+              Editing Sent List
+            </span>
+          ) : cartItems.length > 0 ? (
+            <span className="text-xs font-bold bg-green-100 text-green-800 px-3 py-1 rounded-full">
+              {cartItems.length} in Cart
+            </span>
+          ) : null}
+        </div>
+
         <div className="flex flex-wrap gap-2 py-4">
           {[
-            { key: 'All', label: 'ðŸ  All' },
-            { key: 'Vegetables', label: 'ðŸ¥¬ Veggies' },
-            { key: 'Fruits', label: 'ðŸŽ Fruits' },
-            { key: 'Household', label: 'ðŸ›’ Household' },
-            { key: 'Packaged', label: 'ðŸ¥« Packaged' },
-            { key: 'Cosmetics', label: 'ðŸ’„ Cosmetics' },
-            { key: 'Others', label: 'ðŸ“¦ Others' },
+            { key: 'All', label: '\uD83C\uDFEA All' },
+            { key: 'Vegetables', label: '🥬 Veggies' },
+            { key: 'Fruits', label: '\uD83C\uDF4E Fruits' },
+            { key: 'Household', label: '🛒 Household' },
+            { key: 'Packaged', label: '🥪 Packaged' },
+            { key: 'Cosmetics', label: '💄 Cosmetics' },
+            { key: 'Others', label: '📦 Others' },
           ].map(cat => (
             <button
               key={cat.key}
@@ -843,7 +898,7 @@ export default function HukumDashboard() {
 
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 mt-2">
           {filteredCatalog.map(item => {
-            const isInCart = editableOrder?.items?.some(i => i.catalogId === item.id) || false;
+            const isInCart = cartItems.some(i => i.catalogId === item.id);
             return (
               <CatalogTile key={item.id} item={item} isInCart={isInCart} onToggle={handleToggleCart} />
             );
@@ -858,7 +913,7 @@ export default function HukumDashboard() {
       </div>
       )}
 
-      {/* â”€â”€â”€ FLYING ITEMS â”€â”€â”€ */}
+      {/* ─── FLYING ITEMS ─── */}
       {flyingEmojis.map(f => (
         <FlyingItem
           key={f.id}
@@ -869,7 +924,7 @@ export default function HukumDashboard() {
         />
       ))}
 
-      {/* â”€â”€â”€ FLOATING ADD CUSTOM BUTTON â”€â”€â”€ */}
+      {/* ─── FLOATING ADD CUSTOM BUTTON ─── */}
       {showCatalog && canEdit && (
         <motion.button
           whileTap={{ scale: 0.9 }}
@@ -881,7 +936,7 @@ export default function HukumDashboard() {
         </motion.button>
       )}
 
-      {/* â”€â”€â”€ FLOATING CART BUTTON â”€â”€â”€ */}
+      {/* ─── FLOATING CART BUTTON ─── */}
       {showCatalog && canEdit && (
         <motion.button
           ref={cartBtnRef}
@@ -908,7 +963,7 @@ export default function HukumDashboard() {
         </motion.button>
       )}
 
-      {/* â”€â”€â”€ CART DRAWER â”€â”€â”€ */}
+      {/* ─── CART DRAWER ─── */}
       <AnimatePresence>
         {cartOpen && (
           <>
@@ -943,7 +998,7 @@ export default function HukumDashboard() {
 
               <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
                 <AnimatePresence mode="popLayout">
-                  {editableOrder?.items?.map(item => (
+                  {cartItems.map(item => (
                     <CartItemRow
                       key={item.catalogId}
                       item={item}
@@ -953,7 +1008,7 @@ export default function HukumDashboard() {
                     />
                   ))}
                 </AnimatePresence>
-                {(!editableOrder || editableOrder.items?.length === 0) && (
+                {cartItems.length === 0 && (
                   <div className="text-center py-12 text-gray-400">
                     <ShoppingCart size={48} className="mx-auto mb-3 opacity-30" />
                     <p className="font-semibold">Your cart is empty</p>
@@ -965,13 +1020,13 @@ export default function HukumDashboard() {
               <div className="px-5 py-4 border-t border-gray-200 bg-white">
                 <button
                   onClick={publishCart}
-                  disabled={!editableOrder || editableOrder.items?.length === 0}
+                  disabled={cartItems.length === 0 || isSubmitting}
                   className="w-full py-4 rounded-2xl font-bold text-lg text-white transition-all duration-200
                     bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700
                     disabled:opacity-40 disabled:cursor-not-allowed
                     shadow-lg active:scale-[0.98]"
                 >
-                  Send to Sethji ðŸš€
+                  Send to Sethji 🚀
                 </button>
               </div>
             </motion.div>
@@ -979,7 +1034,7 @@ export default function HukumDashboard() {
         )}
       </AnimatePresence>
 
-      {/* â”€â”€â”€ CUSTOM ITEM MODAL â”€â”€â”€ */}
+      {/* ─── CUSTOM ITEM MODAL ─── */}
       <AnimatePresence>
         {customModalOpen && (
           <>
@@ -1032,7 +1087,7 @@ export default function HukumDashboard() {
         )}
       </AnimatePresence>
 
-      {/* â”€â”€â”€ TOAST NOTIFICATION â”€â”€â”€ */}
+      {/* ─── TOAST NOTIFICATION ─── */}
       <AnimatePresence>
         {toastMsg && (
           <div className="fixed top-20 left-0 right-0 z-[999] flex justify-center pointer-events-none px-4">
@@ -1049,7 +1104,7 @@ export default function HukumDashboard() {
         )}
       </AnimatePresence>
 
-      {/* â”€â”€â”€ DELETE CONFIRMATION MODAL â”€â”€â”€ */}
+      {/* ─── DELETE CONFIRMATION MODAL ─── */}
       <AnimatePresence>
         {deleteModalOpen && (
           <motion.div

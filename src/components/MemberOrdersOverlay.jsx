@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { useUserOrders } from '../hooks/useUserOrders';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { ordersApi } from '../api';
 
 
-/* â”€â”€â”€ Date helpers â”€â”€â”€ */
+/* ─── Date helpers ─── */
 function getDateKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
@@ -25,29 +25,32 @@ function formatDateSubtitle(date) {
   return date.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-/* â”€â”€â”€ Emoji helper â”€â”€â”€ */
+/* ─── Emoji helper ─── */
 import ProductThumb from './ProductThumb';
 
 const EMOJI_MAP = {
-  tomato: 'ðŸ…', potato: 'ðŸ¥”', onion: 'ðŸ§…', carrot: 'ðŸ¥•', lemon: 'ðŸ‹',
-  cabbage: 'ðŸ¥¬', apple: 'ðŸŽ', banana: 'ðŸŒ', milk: 'ðŸ¥›', bread: 'ðŸž',
-  egg: 'ðŸ¥š', rice: 'ðŸš', watermelon: 'ðŸ‰',
+  tomato: '\uD83C\uDF45', potato: '\uD83E\uDD54', onion: '\uD83E\uDDC5', carrot: '\uD83E\uDD55', lemon: '\uD83C\uDF4B',
+  cabbage: '🥬', apple: '\uD83C\uDF4E', banana: '\uD83C\uDF4C', milk: '\uD83E\uDD5B', bread: '\uD83C\uDF5E',
+  egg: '\uD83E\uDD5A', rice: '\uD83C\uDF5A', watermelon: '\uD83C\uDF49',
 };
 function getEmojiForName(name) {
-  if (!name) return 'ðŸ“¦';
+  if (!name) return '📦';
   const n = name.toLowerCase();
   for (const [key, emoji] of Object.entries(EMOJI_MAP)) {
     if (n.includes(key)) return emoji;
   }
-  return 'ðŸ“¦';
+  return '📦';
 }
 
 export default function MemberOrdersOverlay({ member, onClose }) {
-  const { orders } = useUserOrders(member.uid);
+  const memberId = member?.id || member?.uid;
+  const { orders } = useUserOrders(memberId);
   const [selectedDate, setSelectedDate] = useState(new Date());
   
-  const { userRole } = useAuth();
-  const canDeleteList = userRole === 'Hukum' || userRole === 'Admin';
+  const { userRole, currentUser } = useAuth();
+  const currentUserId = currentUser?.id || currentUser?.uid;
+  const isOwner = currentUserId && String(currentUserId) === String(memberId);
+  const canDeleteList = userRole === 'Admin' || (userRole === 'Hukum' && isOwner);
   
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState(null);
@@ -94,7 +97,7 @@ export default function MemberOrdersOverlay({ member, onClose }) {
   };
   const canGoNext = (() => { const m = new Date(); m.setDate(m.getDate() + 7); return selectedKey < getDateKey(m); })();
 
-  const memberName = member.displayName || member.email?.split('@')[0] || 'Member';
+  const memberName = member.displayName || member.display_name || member.username || member.email?.split('@')[0] || 'Member';
   const memberInitials = memberName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
   return (
@@ -120,8 +123,8 @@ export default function MemberOrdersOverlay({ member, onClose }) {
             <div className="flex justify-between items-center mb-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-blue-100 border-2 border-blue-200 flex items-center justify-center overflow-hidden">
-                  {member.photoURL ? (
-                    <img src={member.photoURL} alt={memberName} className="w-full h-full object-cover" />
+                  {member.avatarUrl || member.avatar_url || member.photoURL ? (
+                    <img src={member.avatarUrl || member.avatar_url || member.photoURL} alt={memberName} className="w-full h-full object-cover" />
                   ) : (
                     <span className="text-blue-600 font-bold text-sm">{memberInitials}</span>
                   )}
@@ -158,7 +161,7 @@ export default function MemberOrdersOverlay({ member, onClose }) {
             {dayTotal > 0 && (
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 mb-4 flex justify-between items-center">
                 <span className="text-sm font-bold text-emerald-700">Day Total</span>
-                <span className="text-lg font-black text-emerald-600">â‚¹{dayTotal}</span>
+                <span className="text-lg font-black text-emerald-600">{'\u20B9'}{dayTotal}</span>
               </div>
             )}
 
@@ -174,7 +177,7 @@ export default function MemberOrdersOverlay({ member, onClose }) {
                       <span className="font-bold text-gray-600">List #{oIdx + 1}</span>
                       <div className="flex items-center gap-2">
                         {order.totalExpense > 0 && (
-                          <span className="text-emerald-600 font-bold text-xs">â‚¹{order.totalExpense}</span>
+                          <span className="text-emerald-600 font-bold text-xs">{'\u20B9'}{order.totalExpense}</span>
                         )}
                         <span className={`px-2 py-0.5 rounded-full text-xs font-bold uppercase ${
                           order.status === 'Archived' ? 'bg-gray-200 text-gray-500' :
@@ -197,8 +200,8 @@ export default function MemberOrdersOverlay({ member, onClose }) {
                           <ProductThumb src={item.imageURL} name={item.name} size={28} />
                           <span className="flex-1 text-sm font-semibold text-gray-700 truncate">{item.name}</span>
                           <span className="text-xs text-gray-400 font-semibold">{item.qty} {item.unit || 'pcs'}</span>
-                          {item.status === 'found' && <span className="text-green-500 text-sm">âœ…</span>}
-                          {item.status === 'not_found' && <span className="text-red-500 text-sm">âŒ</span>}
+                          {item.status === 'found' && <span className="text-green-500 text-sm">{'\u2705'}</span>}
+                          {item.status === 'not_found' && <span className="text-red-500 text-sm">{'\u274C'}</span>}
                         </div>
                       ))}
                     </div>
@@ -207,7 +210,7 @@ export default function MemberOrdersOverlay({ member, onClose }) {
               </div>
             ) : (
               <div className="text-center py-16 text-gray-400">
-                <p className="text-4xl mb-2">ðŸ“­</p>
+                <p className="text-4xl mb-2">🔒</p>
                 <p className="font-semibold">No orders for this day</p>
               </div>
             )}
@@ -215,7 +218,7 @@ export default function MemberOrdersOverlay({ member, onClose }) {
         </motion.div>
       </motion.div>
 
-      {/* â”€â”€â”€ DELETE CONFIRMATION MODAL â”€â”€â”€ */}
+      {/* ─── DELETE CONFIRMATION MODAL ─── */}
       {deleteModalOpen && (
         <motion.div
           key="delete-modal"

@@ -11,7 +11,7 @@ import { requestedItemsApi, ordersApi } from '../api';
 import { motion, AnimatePresence } from 'framer-motion';
 
 
-/* â”€â”€â”€ Date helpers â”€â”€â”€ */
+/* ─── Date helpers ─── */
 function getDateKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
@@ -30,13 +30,14 @@ function formatDateSubtitle(date) {
   return date.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-/* â”€â”€â”€ Emoji helper â”€â”€â”€ */
+/* ─── Emoji helper ─── */
 import { getEmojiForName } from '../utils/emoji';
 import ProductThumb from '../components/ProductThumb';
 
-/* â”€â”€â”€ Main Dashboard â”€â”€â”€ */
+/* ─── Main Dashboard ─── */
 export default function SethjiDashboard() {
-  const { orders, updateOrder } = useOrders();
+  const { orders, updateOrder, refreshOrders } = useOrders();
+  const { userRole, currentUser, userFamilyId, userDisplayName } = useAuth();
   const [combo, setCombo] = useState(0);
   const [expense, setExpense] = useState({});
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -44,7 +45,6 @@ export default function SethjiDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
   const { catalog } = useCatalog();
-  const { currentUser, userFamilyId, userDisplayName } = useAuth();
   
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [selectedItemForAdd, setSelectedItemForAdd] = useState(null);
@@ -109,9 +109,10 @@ export default function SethjiDashboard() {
     activeHukums[userId] = userName;
 
     order.items.forEach(item => {
-      if (!consolidatedItemsMap[item.catalogId]) {
-        consolidatedItemsMap[item.catalogId] = {
-          catalogId: item.catalogId,
+      const itemKey = item.catalogId || item.catalog_item_id || item.name;
+      if (!consolidatedItemsMap[itemKey]) {
+        consolidatedItemsMap[itemKey] = {
+          catalogId: itemKey,
           name: item.name,
           imageURL: item.imageURL,
           unit: item.unit || 'pcs',
@@ -121,7 +122,7 @@ export default function SethjiDashboard() {
           lockedBy: item.lockedBy
         };
       }
-      const cItem = consolidatedItemsMap[item.catalogId];
+      const cItem = consolidatedItemsMap[itemKey];
       cItem.quantities[userId] = (cItem.quantities[userId] || 0) + (item.qty || 0);
       if (item.qty === null || item.unit === 'Not Defined') {
         cItem.quantities[userId] = cItem.quantities[userId] || null; // null represents Not Defined qty
@@ -151,9 +152,9 @@ export default function SethjiDashboard() {
   const handleRemoveSethjiItem = (catalogId) => {
     if (!window.confirm("Remove this newly added item?")) return;
     allActiveForDate.forEach(order => {
-      const hasItem = order.items.some(i => i.catalogId === catalogId && i.isSethjiAdded);
+      const hasItem = order.items.some(i => (i.catalog_item_id || i.catalogId || i.name) === catalogId && i.isSethjiAdded);
       if (hasItem) {
-        const newItems = order.items.filter(i => !(i.catalogId === catalogId && i.isSethjiAdded));
+        const newItems = order.items.filter(i => !((i.catalog_item_id || i.catalogId || i.name) === catalogId && i.isSethjiAdded));
         updateOrder(order.id, { items: newItems });
       }
     });
@@ -162,11 +163,17 @@ export default function SethjiDashboard() {
   const handleTickGlobal = (catalogId, status) => {
     let updated = false;
     allActiveForDate.forEach(order => {
-      const hasItem = order.items.some(i => i.catalogId === catalogId);
+      const hasItem = order.items.some(i => (i.catalog_item_id || i.catalogId || i.name) === catalogId);
       if (hasItem) {
         const newItems = order.items.map(i => {
-          if (i.catalogId === catalogId) return { ...i, status, lockedBy: currentUser.uid, statusUpdatedAt: Date.now() };
-          return i;
+          const isMatch = (i.catalog_item_id || i.catalogId || i.name) === catalogId;
+          return {
+            catalog_item_id: i.catalog_item_id || i.catalogId,
+            name: i.name,
+            qty: i.qty,
+            unit: i.unit,
+            status: isMatch ? status : i.status,
+          };
         });
         updateOrder(order.id, { items: newItems });
         updated = true;
@@ -205,51 +212,75 @@ export default function SethjiDashboard() {
   // --- ADD ITEM LOGIC ---
   const openDetailsForm = (item) => {
     setSelectedItemForAdd(item);
+    const defaultTarget = allActiveForDate.length > 0 ? allActiveForDate[0].id : 'new_order';
     setAddFormState({
       qty: '',
       unit: item.allowedUnits?.[0] || (item.category === 'Vegetables' || item.category === 'Fruits' ? 'kg' : 'pieces'),
-      hukumId: 'on_spot'
+      targetId: defaultTarget
     });
   };
 
   const confirmAddItemToOrder = async () => {
     if (!selectedItemForAdd) return;
     
-    const { qty, unit, hukumId } = addFormState;
+    const { qty, unit, targetId } = addFormState;
     const finalQty = qty === '' ? null : Number(qty);
-    const finalUnit = unit === '' ? 'Not Defined' : unit;
+    const finalUnit = unit === '' ? 'pieces' : unit;
+
+    const cid = selectedItemForAdd.id && !String(selectedItemForAdd.id).startsWith('custom_')
+      ? selectedItemForAdd.id
+      : null;
 
     const newItem = {
-      catalogId: selectedItemForAdd.id,
+      catalog_item_id: cid,
+      catalogId: cid || selectedItemForAdd.id,
       name: selectedItemForAdd.name,
-      category: selectedItemForAdd.category,
-      imageURL: selectedItemForAdd.imageURL || null,
       unit: finalUnit,
       qty: finalQty,
       status: 'found',
-      lockedBy: currentUser.uid,
       isSethjiAdded: true,
-      addedAt: Date.now() // using Date.now for simple timestamp
     };
 
-    if (hukumId === 'on_spot') {
-      const onSpotOrder = allActiveForDate.find(o => o.createdBy === 'on_spot');
-      if (onSpotOrder) {
-        updateOrder(onSpotOrder.id, { items: [...onSpotOrder.items, newItem] });
-      } else {
-        await ordersApi.create(selectedKey);
-      }
-    } else if (hukumId === 'all_hukums') {
-      allActiveForDate.forEach(targetOrder => {
-        if (targetOrder.createdBy !== 'on_spot') {
-          updateOrder(targetOrder.id, { items: [...targetOrder.items, newItem] });
+    try {
+      if (targetId === 'all_active') {
+        for (const order of allActiveForDate) {
+          await updateOrder(order.id, {
+            items: [...(order.items || []), newItem]
+          });
         }
-      });
-    } else {
-      const targetOrder = allActiveForDate.find(o => o.createdBy === hukumId);
-      if (targetOrder) {
-        updateOrder(targetOrder.id, { items: [...targetOrder.items, newItem] });
+      } else if (targetId === 'new_order' || allActiveForDate.length === 0) {
+        const famId = userFamilyId || allActiveForDate[0]?.familyId || currentUser?.family_ids?.[0];
+        await ordersApi.create({
+          order_date: selectedKey,
+          status: 'Published',
+          items: [newItem],
+          family_id: famId,
+        });
+        if (refreshOrders) {
+          await refreshOrders();
+        }
+      } else {
+        const targetOrder = allActiveForDate.find(o => o.id === targetId || o.createdBy === targetId) || allActiveForDate[0];
+        if (targetOrder) {
+          await updateOrder(targetOrder.id, {
+            items: [...(targetOrder.items || []), newItem]
+          });
+        } else {
+          const famId = userFamilyId || currentUser?.family_ids?.[0];
+          await ordersApi.create({
+            order_date: selectedKey,
+            status: 'Published',
+            items: [newItem],
+            family_id: famId,
+          });
+          if (refreshOrders) {
+            await refreshOrders();
+          }
+        }
       }
+    } catch (err) {
+      console.error("Error adding item to order:", err);
+      alert("Failed to add item: " + (err.message || err));
     }
 
     setSelectedItemForAdd(null);
@@ -262,9 +293,14 @@ export default function SethjiDashboard() {
     setIsSubmittingCustom(true);
     try {
       const customId = 'custom_' + Date.now();
-      const reqRes = await requestedItemsApi.request(searchQuery.trim());
+      let reqRes = null;
+      try {
+        reqRes = await requestedItemsApi.request(searchQuery.trim());
+      } catch (reqErr) {
+        console.warn("Could not submit custom item to catalog requests:", reqErr);
+      }
       const customItem = {
-        id: reqRes.id || customId,
+        id: reqRes?.id || customId,
         name: searchQuery.trim(),
         category: 'Others',
         isCustom: true
@@ -272,8 +308,8 @@ export default function SethjiDashboard() {
       setSessionCustomItems(prev => [...prev, customItem]);
       openDetailsForm(customItem);
     } catch (err) {
-      console.error("Error adding custom item", err);
-      alert("Failed to add custom item");
+      console.error("Error adding custom item:", err);
+      alert("Failed to add custom item: " + (err.message || err));
     } finally {
       setIsSubmittingCustom(false);
     }
@@ -290,7 +326,7 @@ export default function SethjiDashboard() {
     setSelectedUserId(null);
   }, [selectedKey]);
 
-  /* â”€â”€â”€ Navigation â”€â”€â”€ */
+  /* ─── Navigation ─── */
   const goToPrevDay = () => setSelectedDate(prev => { const d = new Date(prev); d.setDate(d.getDate() - 1); return d; });
   const goToNextDay = () => {
     const maxDate = new Date(); maxDate.setDate(maxDate.getDate() + 7);
@@ -305,7 +341,7 @@ export default function SethjiDashboard() {
       <Navbar onMenuOpen={() => setSidebarOpen(true)} />
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* â”€â”€â”€ DATE NAVIGATION HEADER â”€â”€â”€ */}
+      {/* ─── DATE NAVIGATION HEADER ─── */}
       <div className="px-4 max-w-2xl mx-auto w-full">
         <div className="flex items-center justify-between py-4">
           <motion.button whileTap={{ scale: 0.85 }} onClick={goToPrevDay}
@@ -322,7 +358,7 @@ export default function SethjiDashboard() {
               {formatDateSubtitle(selectedDate)}
             </p>
             {!isToday && (
-              <button className="text-xs font-bold text-green-600 mt-1 hover:underline">â†© Tap to go to Today</button>
+              <button className="text-xs font-bold text-green-600 mt-1 hover:underline">↩ Tap to go to Today</button>
             )}
           </motion.div>
 
@@ -335,10 +371,10 @@ export default function SethjiDashboard() {
         </div>
       </div>
 
-      {/* â”€â”€â”€ CONTENT â”€â”€â”€ */}
+      {/* ─── CONTENT ─── */}
       <div className="flex-1 overflow-y-auto pb-28 px-4 max-w-2xl mx-auto w-full">
 
-        {/* â•â•â• CONSOLIDATED TABLE VIEW â•â•â• */}
+        {/* ═══ CONSOLIDATED TABLE VIEW ═══ */}
         {consolidatedList.length > 0 ? (
           <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm overflow-hidden mt-4">
             <div className="px-4 py-3 bg-gradient-to-r from-orange-50 to-amber-50 border-b border-gray-200 flex justify-between items-center">
@@ -441,7 +477,7 @@ export default function SethjiDashboard() {
                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
                   className="px-4 pb-4">
                   <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl mt-4">
-                    <label className="block text-sm font-bold text-blue-700 mb-2">Total amount spent for today's list (â‚¹)</label>
+                    <label className="block text-sm font-bold text-blue-700 mb-2">Total amount spent for today's list (₹)</label>
                     <div className="flex gap-2">
                       <input type="number"
                         className="flex-1 p-3 border-2 border-blue-200 rounded-xl font-bold text-lg bg-white focus:border-blue-400 focus:outline-none transition-colors"
@@ -449,7 +485,7 @@ export default function SethjiDashboard() {
                         onChange={(e) => setExpense({ ...expense, ['day']: e.target.value })} />
                       <motion.button whileTap={{ scale: 0.95 }} onClick={handleFinalizeAll}
                         className="px-5 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-xl shadow-md hover:from-green-600 hover:to-emerald-700 transition-all">
-                        Finalize All âœ“
+                        Finalize All ✓
                       </motion.button>
                     </div>
                   </div>
@@ -459,7 +495,7 @@ export default function SethjiDashboard() {
           </div>
         ) : (
           <div className="text-center py-20 text-gray-400">
-            <p className="text-5xl mb-3">ðŸ“­</p>
+            <p className="text-5xl mb-3">🔒</p>
             <p className="font-semibold text-lg">No active orders for this day</p>
             <p className="text-sm mt-1">Wait for members to publish their lists</p>
           </div>
@@ -478,11 +514,11 @@ export default function SethjiDashboard() {
                 className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-4 opacity-80">
                 <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
                   <div className="flex items-center gap-2">
-                    <span className="text-lg">âœ…</span>
+                    <span className="text-lg">{'\u2705'}</span>
                     <h4 className="font-bold text-gray-600 text-sm">{order.createdByName || 'Unknown'}'s List</h4>
                   </div>
                   <div className="flex items-center gap-2">
-                    {order.totalExpense > 0 && <span className="text-sm font-bold text-emerald-600">â‚¹{order.totalExpense} (Shared)</span>}
+                    {order.totalExpense > 0 && <span className="text-sm font-bold text-emerald-600">{'\u20B9'}{order.totalExpense} (Shared)</span>}
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-gray-200 text-gray-500">Done</span>
                   </div>
                 </div>
@@ -492,8 +528,8 @@ export default function SethjiDashboard() {
                       <ProductThumb src={item.imageURL} name={item.name} size={28} />
                       <span className="flex-1 text-sm font-semibold text-gray-600 truncate">{item.name}</span>
                       <span className="text-xs text-gray-400 font-semibold">{item.qty} {item.unit || 'pcs'}</span>
-                      {item.status === 'found' && <span className="text-green-500 text-sm">âœ…</span>}
-                      {item.status === 'not_found' && <span className="text-red-500 text-sm">âŒ</span>}
+                      {item.status === 'found' && <span className="text-green-500 text-sm">{'\u2705'}</span>}
+                      {item.status === 'not_found' && <span className="text-red-500 text-sm">{'\u274C'}</span>}
                     </div>
                   ))}
                 </div>
@@ -504,14 +540,14 @@ export default function SethjiDashboard() {
 
       </div>
 
-      {/* â”€â”€â”€ FLOATING COMBO BAR â”€â”€â”€ */}
+      {/* ─── FLOATING COMBO BAR ─── */}
       {consolidatedList.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-50" style={{ maxWidth: '672px', margin: '0 auto' }}>
           <div className="bg-white/95 backdrop-blur-sm border-t-2 border-gray-200 px-5 py-3 shadow-2xl rounded-t-2xl">
             <div className="flex justify-between items-center">
               <div>
                 <div className="text-xs text-gray-400 font-bold uppercase tracking-widest">Combo</div>
-                <div className="text-xl font-black text-orange-500">{combo} ðŸ”¥</div>
+                <div className="text-xl font-black text-orange-500">{combo} 🔥</div>
               </div>
               <div className="text-right">
                 <div className="text-xs text-gray-400 font-bold uppercase tracking-widest">Pending Items</div>
@@ -524,19 +560,19 @@ export default function SethjiDashboard() {
         </div>
       )}
 
-      {/* â”€â”€â”€ DAY TOTAL BAR â”€â”€â”€ */}
+      {/* ─── DAY TOTAL BAR ─── */}
       {consolidatedList.length === 0 && archivedDayTotal > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-50" style={{ maxWidth: '672px', margin: '0 auto' }}>
           <div className="bg-white/95 backdrop-blur-sm border-t-2 border-gray-200 px-5 py-4 shadow-2xl rounded-t-2xl">
             <div className="flex justify-between items-center">
               <span className="text-sm font-bold text-gray-500 uppercase tracking-wider">Day Total</span>
-              <span className="text-2xl font-black text-emerald-600">â‚¹{archivedDayTotal}</span>
+              <span className="text-2xl font-black text-emerald-600">{'\u20B9'}{archivedDayTotal}</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* â”€â”€â”€ ADD ITEM MODAL â”€â”€â”€ */}
+      {/* ─── ADD ITEM MODAL ─── */}
       <AnimatePresence>
         {addModalOpen && (
           <>
@@ -582,17 +618,21 @@ export default function SethjiDashboard() {
                   </div>
 
                   <div>
-                    <label className="block mb-2 font-bold text-gray-700 text-sm">Assign To Hukum</label>
+                    <label className="block mb-2 font-bold text-gray-700 text-sm">Assign To List / Member</label>
                     <select
-                      value={addFormState.hukumId}
-                      onChange={(e) => setAddFormState({ ...addFormState, hukumId: e.target.value })}
+                      value={addFormState.targetId}
+                      onChange={(e) => setAddFormState({ ...addFormState, targetId: e.target.value })}
                       className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold bg-white focus:border-orange-400 focus:outline-none"
                     >
-                      <option value="on_spot">On Spot (-)</option>
-                      <option value="all_hukums">All Hukums (Everyone)</option>
-                      {activeHukumIds.filter(id => id !== 'on_spot').map(uid => (
-                        <option key={uid} value={uid}>{activeHukums[uid]}</option>
+                      {allActiveForDate.map(order => (
+                        <option key={order.id} value={order.id}>
+                          {order.createdByName || 'Family Member'}'s List ({order.items?.length || 0} items)
+                        </option>
                       ))}
+                      {allActiveForDate.length > 1 && (
+                        <option value="all_active">All Active Lists (Add to everyone)</option>
+                      )}
+                      <option value="new_order">Create New On-Spot List</option>
                     </select>
                   </div>
 

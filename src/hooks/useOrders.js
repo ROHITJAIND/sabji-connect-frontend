@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ordersApi, connectWebSocket } from '../api';
 import { useAuth } from '../context/AuthContext';
 
@@ -24,7 +24,7 @@ export function useOrders() {
 
     // Live WebSocket connection to refresh orders on updates
     const ws = connectWebSocket(userFamilyId, (msg) => {
-      if (msg.event === 'order_updated' || msg.event === 'order_deleted') {
+      if (msg.event === 'order_created' || msg.event === 'order_updated' || msg.event === 'order_deleted') {
         fetchOrders();
       }
     });
@@ -37,7 +37,7 @@ export function useOrders() {
   const createDraft = async (orderDate) => {
     try {
       const res = await ordersApi.create(orderDate);
-      await fetchOrders();
+      setOrders(prev => (prev.some(o => o.id === res.id) ? prev.map(o => (o.id === res.id ? res : o)) : [...prev, res]));
       return res;
     } catch (e) {
       console.error('Error creating order draft:', e);
@@ -48,7 +48,7 @@ export function useOrders() {
   const updateOrder = async (id, data) => {
     try {
       const res = await ordersApi.update(id, data);
-      await fetchOrders();
+      setOrders(prev => prev.map(o => (o.id === id ? res : o)));
       return res;
     } catch (e) {
       console.error('Error updating order:', e);
@@ -59,7 +59,7 @@ export function useOrders() {
   const deleteOrder = async (id) => {
     try {
       await ordersApi.delete(id);
-      await fetchOrders();
+      setOrders(prev => prev.filter(o => o.id !== id));
     } catch (e) {
       console.error('Error deleting order:', e);
       throw e;

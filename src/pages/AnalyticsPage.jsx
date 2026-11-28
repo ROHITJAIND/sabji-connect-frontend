@@ -102,10 +102,10 @@ function CustomTooltip({ active, payload, label }) {
 /* ─── Main Page ─── */
 export default function AnalyticsPage() {
   const navigate = useNavigate();
-  const { allOrders, loading: analyticsLoading, userRole } = useAnalytics();
-  const { catalog } = useCatalog();
+  const { allOrders = [], loading: analyticsLoading, userRole } = useAnalytics();
+  const { catalog = [] } = useCatalog();
   const { userFamilyId } = useAuth();
-  const { members, loading: membersLoading } = useFamilyMembers(userFamilyId);
+  const { members = [], loading: membersLoading } = useFamilyMembers(userFamilyId);
   const [selectedHukum, setSelectedHukum] = useState('All');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const showFilter = userRole === 'Admin' || userRole === 'Sethji';
@@ -114,7 +114,7 @@ export default function AnalyticsPage() {
 
   const combinedHukumNames = useMemo(() => {
     const names = new Set();
-    members.forEach(m => {
+    (members || []).forEach(m => {
       // Only include members with the 'Hukum' role
       if (m.role === 'Hukum' && (m.name || m.displayName)) {
         names.add(m.name || m.displayName);
@@ -122,9 +122,9 @@ export default function AnalyticsPage() {
     });
     // Add names from orders just in case a Hukum was deleted but their order remains
     // (We assume anyone who created an order and isn't in members as a non-Hukum is safe to add)
-    allOrders.forEach(o => {
+    (allOrders || []).forEach(o => {
       if (o.createdByName) {
-        const memberMatch = members.find(m => (m.name === o.createdByName || m.displayName === o.createdByName));
+        const memberMatch = (members || []).find(m => (m.name === o.createdByName || m.displayName === o.createdByName));
         if (!memberMatch || memberMatch.role === 'Hukum') {
           names.add(o.createdByName);
         }
@@ -136,10 +136,14 @@ export default function AnalyticsPage() {
   // Build a lookup: item name → imageURL (from catalog or order items)
   const imageMap = useMemo(() => {
     const map = {};
-    catalog.forEach(c => { if (c.imageURL) map[c.name] = c.imageURL; });
+    (catalog || []).forEach(c => {
+      const img = c.imageURL || c.imageUrl;
+      if (img) map[c.name] = img;
+    });
     // Also scan order items for imageURL in case catalog changed
-    allOrders.forEach(o => (o.items || []).forEach(i => {
-      if (i.imageURL && !map[i.name]) map[i.name] = i.imageURL;
+    (allOrders || []).forEach(o => (o.items || []).forEach(i => {
+      const img = i.imageURL || i.imageUrl || i.image_url;
+      if (img && !map[i.name]) map[i.name] = img;
     }));
     return map;
   }, [catalog, allOrders]);
@@ -147,19 +151,20 @@ export default function AnalyticsPage() {
   // Build a lookup: item name → category (from catalog)
   const catalogCategoryMap = useMemo(() => {
     const map = {};
-    catalog.forEach(c => { if (c.category) map[c.name] = c.category; });
+    (catalog || []).forEach(c => { if (c.category) map[c.name] = c.category; });
     return map;
   }, [catalog]);
 
   // Filter orders by selected Hukum
   const orders = useMemo(() => {
-    if (selectedHukum === 'All') return allOrders;
-    return allOrders.filter(o => o.createdByName === selectedHukum);
+    const list = allOrders || [];
+    if (selectedHukum === 'All') return list;
+    return list.filter(o => o.createdByName === selectedHukum);
   }, [allOrders, selectedHukum]);
 
   // ── Compute all metrics ──
   const metrics = useMemo(() => {
-    if (!orders.length) return null;
+    if (!orders || !orders.length) return null;
 
     const totalOrders = orders.length;
     const allItems = orders.flatMap(o => o.items || []);
@@ -167,14 +172,21 @@ export default function AnalyticsPage() {
     const totalItems = allItems.length;
     const uniqueBatchesGlobal = new Set();
     let totalSpent = 0;
+
+    const getOrderSpent = (o) => {
+      if (o.totalExpense && Number(o.totalExpense) > 0) return Number(o.totalExpense);
+      return (o.items || []).reduce((sum, item) => sum + Number(item.actual_price || 0), 0);
+    };
+
     orders.forEach(o => {
+      const spent = getOrderSpent(o);
       if (o.batchId) {
         if (!uniqueBatchesGlobal.has(o.batchId)) {
           uniqueBatchesGlobal.add(o.batchId);
-          totalSpent += Number(o.totalExpense || 0);
+          totalSpent += spent;
         }
       } else {
-        totalSpent += Number(o.totalExpense || 0);
+        totalSpent += spent;
       }
     });
     const uniqueItems = new Set(allItems.map(i => i.name)).size;
@@ -204,8 +216,8 @@ export default function AnalyticsPage() {
     // ── Item status breakdown (found vs not_found) ──
     let found = 0, notFound = 0, pending = 0;
     allItems.forEach(i => {
-      if (i.status === 'found') found++;
-      else if (i.status === 'not_found') notFound++;
+      if (i.status === 'found' || i.is_purchased) found++;
+      else if (i.status === 'not_found' || i.is_out_of_stock) notFound++;
       else pending++;
     });
     const fulfillmentRate = allItems.length > 0
@@ -217,21 +229,38 @@ export default function AnalyticsPage() {
       { name: 'Pending', value: pending },
     ].filter(d => d.value > 0);
 
+    const parseOrderDate = (o) => {
+      if (o.orderDate) {
+        const d = new Date(o.orderDate);
+        if (!isNaN(d.getTime())) return d;
+      }
+      if (o.createdAt) {
+        if (typeof o.createdAt.toDate === 'function') {
+          const d = o.createdAt.toDate();
+          if (!isNaN(d.getTime())) return d;
+        }
+        const d = new Date(o.createdAt);
+        if (!isNaN(d.getTime())) return d;
+      }
+      return new Date();
+    };
+
     // ── Monthly order trend ──
     const monthMap = {};
     orders.forEach(o => {
-      const d = o.createdAt?.toDate?.() || (o.orderDate ? new Date(o.orderDate) : new Date());
+      const d = parseOrderDate(o);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       if (!monthMap[key]) monthMap[key] = { month: key, orders: 0, items: 0, spent: 0, _batches: new Set() };
       monthMap[key].orders++;
       monthMap[key].items += (o.items || []).length;
+      const spent = getOrderSpent(o);
       if (o.batchId) {
         if (!monthMap[key]._batches.has(o.batchId)) {
           monthMap[key]._batches.add(o.batchId);
-          monthMap[key].spent += Number(o.totalExpense || 0);
+          monthMap[key].spent += spent;
         }
       } else {
-        monthMap[key].spent += Number(o.totalExpense || 0);
+        monthMap[key].spent += spent;
       }
     });
     const monthlyTrend = Object.values(monthMap).sort((a, b) => a.month.localeCompare(b.month));
@@ -239,19 +268,20 @@ export default function AnalyticsPage() {
     // ── Daily spend trend ──
     const dailyMap = {};
     orders.forEach(o => {
-      const d = o.createdAt?.toDate?.() || (o.orderDate ? new Date(o.orderDate) : new Date());
+      const d = parseOrderDate(o);
       // format: 'MM/DD' for display
       const key = `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
       // Sort key
       const sortKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       if (!dailyMap[sortKey]) dailyMap[sortKey] = { date: key, sortKey: sortKey, spent: 0, orders: 0, _batches: new Set() };
+      const spent = getOrderSpent(o);
       if (o.batchId) {
         if (!dailyMap[sortKey]._batches.has(o.batchId)) {
           dailyMap[sortKey]._batches.add(o.batchId);
-          dailyMap[sortKey].spent += Number(o.totalExpense || 0);
+          dailyMap[sortKey].spent += spent;
         }
       } else {
-        dailyMap[sortKey].spent += Number(o.totalExpense || 0);
+        dailyMap[sortKey].spent += spent;
       }
       dailyMap[sortKey].orders++;
     });
@@ -261,7 +291,7 @@ export default function AnalyticsPage() {
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const dayMap = dayNames.map(d => ({ day: d, count: 0 }));
     orders.forEach(o => {
-      const d = o.createdAt?.toDate?.() || (o.orderDate ? new Date(o.orderDate) : new Date());
+      const d = parseOrderDate(o);
       dayMap[d.getDay()].count++;
     });
 
@@ -272,13 +302,14 @@ export default function AnalyticsPage() {
       if (!hukumMap[name]) hukumMap[name] = { name, orders: 0, items: 0, spent: 0, _batches: new Set() };
       hukumMap[name].orders++;
       hukumMap[name].items += (o.items || []).length;
+      const spent = getOrderSpent(o);
       if (o.batchId) {
         if (!hukumMap[name]._batches.has(o.batchId)) {
           hukumMap[name]._batches.add(o.batchId);
-          hukumMap[name].spent += Number(o.totalExpense || 0);
+          hukumMap[name].spent += spent;
         }
       } else {
-        hukumMap[name].spent += Number(o.totalExpense || 0);
+        hukumMap[name].spent += spent;
       }
     });
     const hukumBreakdown = Object.values(hukumMap).sort((a, b) => b.orders - a.orders);
@@ -288,7 +319,6 @@ export default function AnalyticsPage() {
     
     const effectiveOrderCount = uniqueBatchesGlobal.size > 0 ? uniqueBatchesGlobal.size : totalOrders;
     const avgSpend = effectiveOrderCount > 0 ? Math.round(totalSpent / effectiveOrderCount) : 0;
-
 
     // ── Biggest single order (by number of distinct items) ──
     const biggestOrder = orders.reduce((max, o) => {
@@ -308,7 +338,7 @@ export default function AnalyticsPage() {
 
     // ── Streak (consecutive order dates) ──
     const orderDates = [...new Set(orders.map(o => {
-      const d = o.createdAt?.toDate?.() || (o.orderDate ? new Date(o.orderDate) : new Date());
+      const d = parseOrderDate(o);
       return d.toISOString().split('T')[0];
     }))].sort();
     let streak = 1, maxStreak = 1;

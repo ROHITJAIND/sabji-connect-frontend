@@ -1,17 +1,20 @@
-﻿import { useMemo } from 'react';
+import { useMemo } from 'react';
 import { useOrders } from './useOrders';
+import { useAuth } from '../context/AuthContext';
 
 export function useAnalytics() {
-  const { orders, loading } = useOrders();
+  const { orders = [], loading } = useOrders();
+  const { userRole } = useAuth();
+
+  const allOrders = useMemo(() => (Array.isArray(orders) ? orders : []), [orders]);
 
   const analytics = useMemo(() => {
-    if (!orders || orders.length === 0) {
+    if (allOrders.length === 0) {
       return {
         totalSpent: 0,
         totalItems: 0,
         completedOrders: 0,
         spendingByDate: [],
-        categorySpending: [],
         topItems: [],
       };
     }
@@ -22,7 +25,7 @@ export function useAnalytics() {
     const dateMap = {};
     const itemMap = {};
 
-    orders.forEach(order => {
+    allOrders.forEach(order => {
       const isArchived = order.status === 'Archived';
       if (isArchived) completedOrders += 1;
 
@@ -59,7 +62,13 @@ export function useAnalytics() {
       spendingByDate,
       topItems,
     };
-  }, [orders]);
+  }, [allOrders]);
 
-  return { ...analytics, loading };
+  return {
+    ...analytics,
+    allOrders,
+    orders: allOrders,
+    loading,
+    userRole,
+  };
 }

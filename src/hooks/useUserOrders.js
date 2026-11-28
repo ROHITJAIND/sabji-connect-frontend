@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ordersApi } from '../api';
 
 export function useUserOrders(userId) {
@@ -14,7 +14,7 @@ export function useUserOrders(userId) {
     try {
       const allOrders = await ordersApi.list();
       const userOrders = allOrders.filter(
-        o => o.createdBy === userId && ['Published', 'Fulfilling', 'Archived'].includes(o.status)
+        o => (String(o.createdBy) === String(userId)) && ['Published', 'Fulfilling', 'Archived'].includes(o.status)
       );
       setOrders(userOrders);
     } catch (e) {
